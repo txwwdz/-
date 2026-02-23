@@ -54,7 +54,6 @@ let currentPage = 0;
 let colsPerPage = 4;
 let rowsPerPage = 6;
 let itemsPerPage = 24;
-let isAutoArrange = true;
 
 // 拖拽相关变量
 let draggedAppId = null;
@@ -80,8 +79,6 @@ function init() {
     
     window.addEventListener('resize', () => {
         updateLayoutConfig();
-        // 重新计算布局以适应新网格
-        rearrangeApps();
         renderApps();
     });
     
@@ -187,37 +184,6 @@ function initAppsLayout() {
     });
 }
 
-// 重新排列所有应用 (自动补齐)
-function rearrangeApps() {
-    // 提取所有非 dock 应用
-    const desktopApps = apps.filter(a => a.type !== 'dock');
-    
-    // 按当前 page 和 slot 排序
-    desktopApps.sort((a, b) => {
-        if (a.page !== b.page) return a.page - b.page;
-        return a.slot - b.slot;
-    });
-    
-    // 清空所有位置
-    desktopApps.forEach(app => { app.page = undefined; app.slot = undefined; });
-    
-    // 优先放置 Widget (保持其相对顺序，通常在最前面)
-    const widgets = desktopApps.filter(a => a.type === 'widget');
-    widgets.forEach(w => {
-        const pos = findNextEmptySlot(0, 0, null, w.size);
-        w.page = pos.page;
-        w.slot = pos.slot;
-    });
-    
-    // 放置普通应用
-    const normals = desktopApps.filter(a => a.type !== 'widget');
-    normals.forEach(app => {
-        const pos = findNextEmptySlot(0, 0);
-        app.page = pos.page;
-        app.slot = pos.slot;
-    });
-}
-
 // 渲染应用
 function renderApps() {
     const dockGrid = document.getElementById('dock-grid');
@@ -229,6 +195,7 @@ function renderApps() {
     pagination.innerHTML = '';
 
     const dockApps = apps.filter(app => app.type === 'dock');
+    
     dockApps.forEach(app => {
         dockGrid.appendChild(createAppElement(app));
     });
@@ -258,23 +225,33 @@ function createPage(pageIndex, wrapper, pagination) {
 
     const grid = document.createElement('div');
     grid.className = 'app-grid';
+    if (pageIndex === 0) grid.classList.add('first-page');
     grid.id = `grid-page-${pageIndex}`;
 
-    // 渲染该页的应用
-    const pageApps = apps.filter(a => a.page === pageIndex && a.type !== 'dock');
-    
-    pageApps.forEach(app => {
-        const el = createAppElement(app);
-        
-        // 使用 CSS Grid 定位
-        const row = Math.floor(app.slot / colsPerPage) + 1;
-        const col = (app.slot % colsPerPage) + 1;
-        const rowSpan = app.type === 'widget' ? app.size.rows : 1;
-        const colSpan = app.type === 'widget' ? app.size.cols : 1;
-        
-        el.style.gridArea = `${row} / ${col} / span ${rowSpan} / span ${colSpan}`;
-        grid.appendChild(el);
-    });
+    if (pageIndex === 0) {
+        const widgetContainer = document.createElement('div');
+        widgetContainer.className = 'widget-container';
+        widgetContainer.innerHTML = `
+            <div class="time-widget">
+                <div id="widget-time">12:00</div>
+                <div id="widget-date">2月23日 星期日</div>
+            </div>
+        `;
+        page.appendChild(widgetContainer);
+    }
+
+    const capacity = itemsPerPage;
+
+    for (let i = 0; i < capacity; i++) {
+        const app = apps.find(a => a.page === pageIndex && a.slot === i && a.type !== 'dock');
+        if (app) {
+            grid.appendChild(createAppElement(app));
+        } else {
+            const placeholder = document.createElement('div');
+            placeholder.className = 'app-item placeholder';
+            grid.appendChild(placeholder);
+        }
+    }
 
     page.appendChild(grid);
     wrapper.appendChild(page);
@@ -518,13 +495,6 @@ function openSettings() {
                 <span class="slider"></span>
             </label>
         </div>
-        <div class="setting-item">
-            <span class="setting-label">关闭自动补齐</span>
-            <label class="switch">
-                <input type="checkbox" id="toggle-autoarrange" ${!isAutoArrange ? 'checked' : ''}>
-                <span class="slider"></span>
-            </label>
-        </div>
     `;
     
     appWindow.classList.add('active');
@@ -541,14 +511,6 @@ function openSettings() {
         } else {
             document.body.classList.remove('fullscreen-mode');
             updateLayoutConfig();
-            renderApps();
-        }
-    });
-    
-    document.getElementById('toggle-autoarrange').addEventListener('change', (e) => {
-        isAutoArrange = !e.target.checked;
-        if (isAutoArrange) {
-            rearrangeApps();
             renderApps();
         }
     });
@@ -721,13 +683,10 @@ function restoreAppFromStore(appId) {
         deletedApps.splice(index, 1);
         app.page = undefined;
         apps.push(app);
-        if (isAutoArrange) rearrangeApps();
-        else {
-            // 找空位
-            const pos = findNextEmptySlot(0, 0);
-            app.page = pos.page;
-            app.slot = pos.slot;
-        }
+        // 找空位
+        const pos = findNextEmptySlot(0, 0);
+        app.page = pos.page;
+        app.slot = pos.slot;
         renderApps();
     }
 }
@@ -854,7 +813,6 @@ function handleDragEnd(e) {
                     app.type = 'dock';
                     app.page = -1;
                     app.slot = -1;
-                    if (isAutoArrange) rearrangeApps();
                 }
             }
         } else {
@@ -885,29 +843,21 @@ function handleDragEnd(e) {
                         const conflictApp = apps.find(a => a.id !== app.id && a.page === currentPage && a.slot === targetSlot && a.type !== 'dock');
                         
                         if (conflictApp) {
-                            if (isAutoArrange) {
-                                rearrangeApps();
-                            } else {
-                                // 交换位置
-                                if (oldType === 'dock') {
-                                    const dockApps = apps.filter(a => a.type === 'dock');
-                                    if (dockApps.length < 5) {
-                                        conflictApp.type = 'dock';
-                                        conflictApp.page = -1;
-                                        conflictApp.slot = -1;
-                                    } else {
-                                        app.type = oldType;
-                                        app.page = oldPage;
-                                        app.slot = oldSlot;
-                                    }
+                            // 交换位置
+                            if (oldType === 'dock') {
+                                const dockApps = apps.filter(a => a.type === 'dock');
+                                if (dockApps.length < 5) {
+                                    conflictApp.type = 'dock';
+                                    conflictApp.page = -1;
+                                    conflictApp.slot = -1;
                                 } else {
-                                    conflictApp.page = oldPage;
-                                    conflictApp.slot = oldSlot;
+                                    app.type = oldType;
+                                    app.page = oldPage;
+                                    app.slot = oldSlot;
                                 }
-                            }
-                        } else {
-                            if (isAutoArrange) {
-                                rearrangeApps();
+                            } else {
+                                conflictApp.page = oldPage;
+                                conflictApp.slot = oldSlot;
                             }
                         }
                     }
@@ -919,41 +869,12 @@ function handleDragEnd(e) {
     }
 }
 
-function rearrangeApps() {
-    const desktopApps = apps.filter(a => a.type !== 'dock');
-    
-    // 提取 Widget 和普通应用
-    const widgets = desktopApps.filter(a => a.type === 'widget');
-    const normals = desktopApps.filter(a => a.type !== 'widget');
-    
-    // 按当前位置排序
-    normals.sort((a, b) => {
-        if (a.page !== b.page) return a.page - b.page;
-        return a.slot - b.slot;
-    });
-    
-    // 重置位置
-    normals.forEach(app => { app.page = undefined; app.slot = undefined; });
-    
-    // Widget 位置保持不变 (假设它们是固定的锚点)
-    // 或者重新分配 Widget? 暂时保持 Widget 不动
-    
-    // 重新分配普通应用
-    normals.forEach(app => {
-        const pos = findNextEmptySlot(0, 0);
-        app.page = pos.page;
-        app.slot = pos.slot;
-    });
-}
-
 function confirmDelete() {
     const app = apps.find(a => a.id === draggedAppId);
     if (app) {
         const index = apps.indexOf(app);
         apps.splice(index, 1);
         deletedApps.push(app);
-        
-        if (isAutoArrange) rearrangeApps();
         
         document.getElementById('confirm-modal').classList.add('hidden');
         renderApps();
