@@ -6,9 +6,6 @@ let apps = [
     { id: 'wechat', name: '微信', icon: 'fa-comments', color: '#07c160', type: 'dock', text: 'WeChat', category: '通讯', initials: 'wx' },
     { id: 'browser', name: '浏览器', icon: 'fa-compass', color: '#007aff', type: 'dock', category: '工具', initials: 'llq' },
 
-    // 时间组件 (占据 3行 x 4列)
-    { id: 'widget-time', name: '时间', type: 'widget', size: { rows: 3, cols: 4 } },
-
     // 桌面应用
     { id: 'qq', name: 'QQ', icon: 'fa-qq', color: '#12b7f5', type: 'brand', category: '通讯', initials: 'qq' },
     { id: 'worldbook', name: '世界书', icon: 'fa-book-atlas', color: '#ffab91', category: '阅读', initials: 'sjs' },
@@ -51,9 +48,8 @@ let deletedApps = [];
 let isEditMode = false;
 let longPressTimer;
 let currentPage = 0;
-let colsPerPage = 4;
-let rowsPerPage = 6;
-let itemsPerPage = 24;
+let itemsPerPageFirst = 16;
+let itemsPerPageOther = 24;
 
 // 拖拽相关变量
 let draggedAppId = null;
@@ -95,13 +91,12 @@ function init() {
 function updateLayoutConfig() {
     const width = window.innerWidth;
     if (document.body.classList.contains('fullscreen-mode') && width >= 768) {
-        colsPerPage = 8;
-        rowsPerPage = 6;
+        itemsPerPageFirst = 48; // 8x6
+        itemsPerPageOther = 48;
     } else {
-        colsPerPage = 4;
-        rowsPerPage = 6;
+        itemsPerPageFirst = 16; // 4x4
+        itemsPerPageOther = 24; // 4x6
     }
-    itemsPerPage = colsPerPage * rowsPerPage;
 }
 
 // 检查某个格子是否被占用
@@ -110,53 +105,21 @@ function isSlotOccupied(page, slot, excludeAppId = null) {
         if (app.id === excludeAppId) return false;
         if (app.type === 'dock') return false;
         if (app.page !== page) return false;
-        
-        if (app.type === 'widget') {
-            const wRow = Math.floor(app.slot / colsPerPage);
-            const wCol = app.slot % colsPerPage;
-            const targetRow = Math.floor(slot / colsPerPage);
-            const targetCol = slot % colsPerPage;
-            
-            return targetRow >= wRow && targetRow < wRow + app.size.rows &&
-                   targetCol >= wCol && targetCol < wCol + app.size.cols;
-        } else {
-            return app.slot === slot;
-        }
+        return app.slot === slot;
     });
 }
 
 // 寻找下一个空位
-function findNextEmptySlot(startPage = 0, startSlot = 0, excludeAppId = null, size = {rows:1, cols:1}) {
+function findNextEmptySlot(startPage = 0, startSlot = 0) {
     let page = startPage;
     let slot = startSlot;
     
     while (true) {
-        let canFit = true;
-        // 检查所需的所有格子是否为空
-        for (let r = 0; r < size.rows; r++) {
-            for (let c = 0; c < size.cols; c++) {
-                const checkRow = Math.floor(slot / colsPerPage) + r;
-                const checkCol = (slot % colsPerPage) + c;
-                
-                // 越界检查
-                if (checkCol >= colsPerPage || checkRow >= rowsPerPage) {
-                    canFit = false;
-                    break;
-                }
-                
-                const checkSlot = checkRow * colsPerPage + checkCol;
-                if (isSlotOccupied(page, checkSlot, excludeAppId)) {
-                    canFit = false;
-                    break;
-                }
-            }
-            if (!canFit) break;
+        if (!isSlotOccupied(page, slot)) {
+            return { page, slot };
         }
-        
-        if (canFit) return { page, slot };
-        
         slot++;
-        if (slot >= itemsPerPage) {
+        if (slot >= itemsPerPageOther) { // 简化逻辑，统一用 itemsPerPageOther
             slot = 0;
             page++;
         }
@@ -165,21 +128,30 @@ function findNextEmptySlot(startPage = 0, startSlot = 0, excludeAppId = null, si
 
 // 初始化应用布局
 function initAppsLayout() {
-    // 强制 Widget 在第一页开头
-    const widget = apps.find(a => a.type === 'widget');
-    if (widget && widget.page === undefined) {
-        widget.page = 0;
-        widget.slot = 0;
-    }
-
+    let currentCount = 0;
     apps.forEach(app => {
         if (app.type === 'dock') {
             app.page = -1;
             app.slot = -1;
-        } else if (app.type !== 'widget' && app.page === undefined) {
-            const emptyPos = findNextEmptySlot(0, 0);
-            app.page = emptyPos.page;
-            app.slot = emptyPos.slot;
+        } else {
+            if (app.page === undefined) {
+                let page = 0;
+                let slot = 0;
+                let tempCount = currentCount;
+                
+                if (tempCount < itemsPerPageFirst) {
+                    page = 0;
+                    slot = tempCount;
+                } else {
+                    tempCount -= itemsPerPageFirst;
+                    page = 1 + Math.floor(tempCount / itemsPerPageOther);
+                    slot = tempCount % itemsPerPageOther;
+                }
+                
+                app.page = page;
+                app.slot = slot;
+                currentCount++;
+            }
         }
     });
 }
@@ -240,7 +212,7 @@ function createPage(pageIndex, wrapper, pagination) {
         page.appendChild(widgetContainer);
     }
 
-    const capacity = itemsPerPage;
+    const capacity = pageIndex === 0 ? itemsPerPageFirst : itemsPerPageOther;
 
     for (let i = 0; i < capacity; i++) {
         const app = apps.find(a => a.page === pageIndex && a.slot === i && a.type !== 'dock');
@@ -272,50 +244,42 @@ function createPage(pageIndex, wrapper, pagination) {
 function createAppElement(app) {
     const div = document.createElement('div');
     div.className = `app-item ${isEditMode ? 'shaking' : ''}`;
-    if (app.type === 'widget') div.classList.add('widget-item');
     div.dataset.id = app.id;
     
-    if (app.type === 'widget') {
-        div.innerHTML = `
-            <div class="time-widget">
-                <div class="widget-time-text">12:00</div>
-                <div class="widget-date-text">2月23日 星期日</div>
+    const iconDiv = document.createElement('div');
+    iconDiv.className = 'app-icon';
+    
+    if (app.color && app.color.includes('gradient')) {
+        iconDiv.style.background = app.color;
+    } else {
+        iconDiv.style.backgroundColor = app.color || '#ccc';
+    }
+    
+    if (app.name === '日历') {
+        const now = new Date();
+        const date = now.getDate();
+        const days = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
+        const day = days[now.getDay()];
+        
+        iconDiv.innerHTML = `
+            <div class="calendar-icon">
+                <div class="calendar-weekday">${day}</div>
+                <div class="calendar-date">${date}</div>
             </div>
         `;
-    } else {
-        const iconDiv = document.createElement('div');
-        iconDiv.className = 'app-icon';
-        
-        if (app.color && app.color.includes('gradient')) {
-            iconDiv.style.background = app.color;
-        } else {
-            iconDiv.style.backgroundColor = app.color || '#ccc';
+        iconDiv.style.backgroundColor = 'white';
+    } else if (app.name === '时钟') {
+        let marksHtml = '';
+        for (let i = 0; i < 12; i++) {
+            const deg = i * 30;
+            const isMain = i % 3 === 0;
+            marksHtml += `<div class="clock-mark ${isMain ? 'long' : ''}" style="transform: rotate(${deg}deg) translate(0, -24px)"></div>`;
         }
         
-        if (app.name === '日历') {
-            const now = new Date();
-            const date = now.getDate();
-            const days = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
-            const day = days[now.getDay()];
-            
-            iconDiv.innerHTML = `
-                <div class="calendar-icon">
-                    <div class="calendar-weekday">${day}</div>
-                    <div class="calendar-date">${date}</div>
-                </div>
-            `;
-            iconDiv.style.backgroundColor = 'white';
-        } else if (app.name === '时钟') {
-            let marksHtml = '';
-            for (let i = 0; i < 12; i++) {
-                const deg = i * 30;
-                const isMain = i % 3 === 0;
-                marksHtml += `<div class="clock-mark ${isMain ? 'long' : ''}" style="transform: rotate(${deg}deg) translate(0, -24px)"></div>`;
-            }
-            
-            iconDiv.innerHTML = `
-                <div class="clock-icon">
-                    <div class="clock-face">
+        iconDiv.innerHTML = `
+            <div class="clock-icon">
+                <div class="clock-face">
+                    <div class="clock-circle">
                         <div class="clock-hand hour-hand" id="clock-hour-${app.id}"></div>
                         <div class="clock-hand minute-hand" id="clock-min-${app.id}"></div>
                         <div class="clock-hand second-hand" id="clock-sec-${app.id}"></div>
@@ -323,35 +287,39 @@ function createAppElement(app) {
                         ${marksHtml}
                     </div>
                 </div>
-            `;
-            iconDiv.style.backgroundColor = 'black';
-        } else if (app.svgPath) {
-            iconDiv.innerHTML = `<svg viewBox="${app.viewBox || '0 0 24 24'}" style="width: 30px; height: 30px; fill: white;"><path d="${app.svgPath}"></path></svg>`;
-        } else if (app.customHtml) {
-            iconDiv.innerHTML = app.customHtml;
+            </div>
+        `;
+        iconDiv.style.backgroundColor = 'white';
+    } else if (app.id === 'qq') {
+        // 使用 SVG 替代 FontAwesome
+        iconDiv.innerHTML = `<svg viewBox="0 0 1024 1024" width="30" height="30"><path d="M824.8 613.2c-16-51.4-34.4-94.6-62.7-165.3C766.5 262.2 689.3 112 511.5 112 331.7 112 256.2 265.2 261 447.9c-28.4 70.8-46.7 113.7-62.7 165.3-34 91.5-73.7 266.6-2.2 281.7 46.1 9.9 96.3 12.5 115.5-2.5 17.4-13.5 26.6-46.5 33.7-79.7 40.4 54.3 98.9 97.6 166.1 97.6 67.2 0 125.7-43.3 166.1-97.6 7.1 33.1 16.3 66.2 33.7 79.7 19.2 15 69.4 12.4 115.5 2.5 71.5-15.1 29.8-190.2-2.2-281.7zM511.6 726.1c-74.7 0-134.2-115.3-134.2-257.6s60-117.8 134.2-117.8c74.7 0 134.2 115.3 134.2 257.6s-59.5 117.8-134.2 117.8z" fill="#ffffff"/></svg>`;
+        iconDiv.style.backgroundColor = '#12b7f5';
+    } else if (app.svgPath) {
+        iconDiv.innerHTML = `<svg viewBox="${app.viewBox || '0 0 24 24'}" style="width: 30px; height: 30px; fill: white;"><path d="${app.svgPath}"></path></svg>`;
+    } else if (app.customHtml) {
+        iconDiv.innerHTML = app.customHtml;
+    } else {
+        const i = document.createElement('i');
+        if (app.type === 'brand') {
+            i.className = `fab ${app.icon}`;
         } else {
-            const i = document.createElement('i');
-            if (app.type === 'brand') {
-                i.className = `fab ${app.icon}`;
-            } else {
-                i.className = `fas ${app.icon}`;
-            }
-            if (app.textColor) {
-                i.style.color = app.textColor;
-            }
-            if (app.fontSize) {
-                i.style.fontSize = app.fontSize;
-            }
-            iconDiv.appendChild(i);
+            i.className = `fas ${app.icon}`;
         }
-        
-        const nameSpan = document.createElement('span');
-        nameSpan.className = 'app-name';
-        nameSpan.textContent = app.name;
-        
-        div.appendChild(iconDiv);
-        div.appendChild(nameSpan);
+        if (app.textColor) {
+            i.style.color = app.textColor;
+        }
+        if (app.fontSize) {
+            i.style.fontSize = app.fontSize;
+        }
+        iconDiv.appendChild(i);
     }
+    
+    const nameSpan = document.createElement('span');
+    nameSpan.className = 'app-name';
+    nameSpan.textContent = app.name;
+    
+    div.appendChild(iconDiv);
+    div.appendChild(nameSpan);
     
     bindAppEvents(div, app);
     
@@ -388,7 +356,7 @@ function bindAppEvents(element, app) {
                     openSettings();
                 } else if (app.id === 'store') {
                     openAppStore();
-                } else if (app.type !== 'widget') {
+                } else {
                     openApp(app);
                 }
             }
@@ -568,7 +536,6 @@ function filterStoreApps(keyword, category = 'all') {
     const allApps = [...apps, ...deletedApps];
     
     const filtered = allApps.filter(app => {
-        if (app.type === 'widget') return false;
         const matchKeyword = app.name.includes(keyword) || (app.initials && app.initials.includes(keyword.toLowerCase()));
         const matchCat = category === 'all' || app.category === category;
         return matchKeyword && matchCat;
