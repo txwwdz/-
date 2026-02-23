@@ -59,6 +59,9 @@ let isDragging = false;
 let dragStartX, dragStartY;
 let screenRect = null;
 let lastPageSwitchTime = 0;
+let touchStartTime = 0;
+let touchStartX = 0;
+let touchStartY = 0;
 
 // 初始化函数
 function init() {
@@ -76,6 +79,7 @@ function init() {
         renderApps();
     });
     
+    // 禁用右键菜单和长按选中文本
     window.oncontextmenu = function(event) {
         event.preventDefault();
         event.stopPropagation();
@@ -137,11 +141,6 @@ function renderApps() {
     pagination.innerHTML = '';
 
     const dockApps = apps.filter(app => app.type === 'dock');
-    if (dockApps.length > 4) {
-        dockGrid.classList.add('packed');
-    } else {
-        dockGrid.classList.remove('packed');
-    }
     
     dockApps.forEach(app => {
         dockGrid.appendChild(createAppElement(app));
@@ -240,6 +239,14 @@ function createAppElement(app) {
         `;
         iconDiv.style.backgroundColor = 'white';
     } else if (app.name === '时钟') {
+        // 生成刻度
+        let marksHtml = '';
+        for (let i = 0; i < 12; i++) {
+            const deg = i * 30;
+            const isMain = i % 3 === 0; // 12, 3, 6, 9
+            marksHtml += `<div class="clock-mark ${isMain ? 'long' : ''}" style="transform: rotate(${deg}deg) translate(0, -24px)"></div>`;
+        }
+        
         iconDiv.innerHTML = `
             <div class="clock-icon">
                 <div class="clock-face">
@@ -247,13 +254,7 @@ function createAppElement(app) {
                     <div class="clock-hand minute-hand" id="clock-min-${app.id}"></div>
                     <div class="clock-hand second-hand" id="clock-sec-${app.id}"></div>
                     <div class="clock-center"></div>
-                    ${[0, 30, 60, 90, 120, 150, 180, 210, 240, 270, 300, 330].map(deg => 
-                        `<div class="clock-mark" style="transform: rotate(${deg}deg) translate(0, -24px)"></div>`
-                    ).join('')}
-                    <div class="clock-number clock-num-12"><span>12</span></div>
-                    <div class="clock-number clock-num-3"><span>3</span></div>
-                    <div class="clock-number clock-num-6"><span>6</span></div>
-                    <div class="clock-number clock-num-9"><span>9</span></div>
+                    ${marksHtml}
                 </div>
             </div>
         `;
@@ -292,6 +293,12 @@ function createAppElement(app) {
 
 function bindAppEvents(element, app) {
     const startHandler = (e) => {
+        // 记录触摸开始信息，用于防误触
+        const touch = e.touches ? e.touches[0] : e;
+        touchStartTime = Date.now();
+        touchStartX = touch.clientX;
+        touchStartY = touch.clientY;
+
         if (isEditMode) {
             handleDragStart(e, app, element);
         } else {
@@ -305,12 +312,20 @@ function bindAppEvents(element, app) {
     const endHandler = (e) => {
         clearTimeout(longPressTimer);
         if (!isEditMode && !isDragging) {
-            if (app.id === 'settings') {
-                openSettings();
-            } else if (app.id === 'store') {
-                openAppStore();
-            } else {
-                openApp(app);
+            // 防误触：如果移动距离过大或时间过长，不视为点击
+            const touch = e.changedTouches ? e.changedTouches[0] : e;
+            const dx = Math.abs(touch.clientX - touchStartX);
+            const dy = Math.abs(touch.clientY - touchStartY);
+            const dt = Date.now() - touchStartTime;
+            
+            if (dx < 10 && dy < 10 && dt < 500) {
+                if (app.id === 'settings') {
+                    openSettings();
+                } else if (app.id === 'store') {
+                    openAppStore();
+                } else {
+                    openApp(app);
+                }
             }
         }
     };
@@ -321,8 +336,17 @@ function bindAppEvents(element, app) {
     element.addEventListener('mouseup', endHandler);
     element.addEventListener('touchend', endHandler);
     
-    element.addEventListener('mousemove', () => clearTimeout(longPressTimer));
-    element.addEventListener('touchmove', () => clearTimeout(longPressTimer));
+    element.addEventListener('mousemove', (e) => {
+        const dx = Math.abs(e.clientX - touchStartX);
+        const dy = Math.abs(e.clientY - touchStartY);
+        if (dx > 10 || dy > 10) clearTimeout(longPressTimer);
+    });
+    element.addEventListener('touchmove', (e) => {
+        const touch = e.touches[0];
+        const dx = Math.abs(touch.clientX - touchStartX);
+        const dy = Math.abs(touch.clientY - touchStartY);
+        if (dx > 10 || dy > 10) clearTimeout(longPressTimer);
+    }, { passive: false });
 }
 
 function enterEditMode() {
@@ -372,8 +396,10 @@ function initHistoryState() {
         
         const storeContent = document.querySelector('.app-store-content');
         if (storeContent && storeContent.querySelector('.store-detail-header')) {
+            // 如果在详情页，返回列表
             renderStoreHome(storeContent);
         } else {
+            // 否则关闭应用
             if (appWindow.classList.contains('active')) {
                 appWindow.classList.remove('active');
             }
@@ -557,14 +583,14 @@ function renderStoreDetail(app) {
                 <div class="store-detail-name">${app.name}</div>
                 <div class="store-detail-cat">${app.category || '应用'}</div>
             </div>
-            <div class="store-detail-actions">
-                <div class="store-detail-btn share"><i class="fas fa-share-alt"></i></div>
-                ${isInstalled ? '<div class="store-detail-btn uninstall"><i class="fas fa-trash"></i></div>' : ''}
-            </div>
         </div>
         <div class="store-detail-tabs">
             <div class="store-tab active" data-tab="intro">介绍</div>
             <div class="store-tab" data-tab="comments">评论</div>
+        </div>
+        <div class="store-detail-actions">
+            <div class="store-detail-btn share"><i class="fas fa-share-alt"></i></div>
+            ${isInstalled ? '<div class="store-detail-btn uninstall"><i class="fas fa-trash"></i></div>' : ''}
         </div>
         <div class="store-detail-content">
             <div id="tab-intro" class="tab-content active">
@@ -574,13 +600,10 @@ function renderStoreDetail(app) {
                 <p>大小：50MB</p>
             </div>
             <div id="tab-comments" class="tab-content">
-                <div class="comment-item" style="text-align:center; color:#999; padding:20px;">
+                <div class="comment-item" style="text-align:center; color:#999; padding:20px; border:none;">
                     暂无评论
                 </div>
             </div>
-        </div>
-        <div class="store-detail-back">
-            <button id="store-back-btn">返回列表</button>
         </div>
     `;
     
@@ -614,7 +637,7 @@ function restoreAppFromStore(appId) {
         deletedApps.splice(index, 1);
         app.page = undefined;
         apps.push(app);
-        rearrangeApps();
+        if (isAutoArrange) rearrangeApps();
         renderApps();
     }
 }
@@ -731,85 +754,84 @@ function handleDragEnd(e) {
         const dockRect = dockGrid.getBoundingClientRect();
         const touch = e.changedTouches ? e.changedTouches[0] : e;
         
+        const app = apps.find(a => a.id === draggedAppId);
+        if (!app) return;
+
         if (touch.clientY >= dockRect.top && touch.clientY <= dockRect.bottom) {
-            const app = apps.find(a => a.id === draggedAppId);
-            if (app) {
-                const dockApps = apps.filter(a => a.type === 'dock');
-                if (app.type !== 'dock') {
-                    if (dockApps.length < 5) {
-                        app.type = 'dock';
-                        app.page = -1;
-                        app.slot = -1;
-                    }
+            // 拖入 Dock
+            const dockApps = apps.filter(a => a.type === 'dock');
+            if (app.type !== 'dock') {
+                if (dockApps.length < 5) {
+                    app.type = 'dock';
+                    app.page = -1;
+                    app.slot = -1;
+                    if (isAutoArrange) rearrangeApps();
                 }
             }
         } else {
+            // 拖入桌面
             const grid = document.getElementById(`grid-page-${currentPage}`);
             if (grid) {
                 const gridRect = grid.getBoundingClientRect();
-                
                 const relativeX = touch.clientX - gridRect.left;
                 const relativeY = touch.clientY - gridRect.top;
                 
-                const capacity = currentPage === 0 ? itemsPerPageFirst : itemsPerPageOther;
-                const rows = currentPage === 0 ? 4 : 6;
+                const cols = window.innerWidth >= 768 && document.body.classList.contains('fullscreen-mode') ? 8 : 4;
+                const rows = currentPage === 0 ? (cols === 8 ? 6 : 4) : 6;
                 
-                const col = Math.floor(relativeX / (gridRect.width / 4));
+                const col = Math.floor(relativeX / (gridRect.width / cols));
                 const row = Math.floor(relativeY / (gridRect.height / rows));
                 
-                if (col >= 0 && col < 4 && row >= 0 && row < rows) {
-                    const targetSlot = row * 4 + col;
-                    const app = apps.find(a => a.id === draggedAppId);
+                if (col >= 0 && col < cols && row >= 0 && row < rows) {
+                    const targetSlot = row * cols + col;
                     
-                    if (app) {
-                        app.type = undefined;
-                        app.page = currentPage;
-                        app.slot = targetSlot;
-                        
-                        const conflictApp = apps.find(a => a.id !== app.id && a.page === currentPage && a.slot === targetSlot && a.type !== 'dock');
-                        
-                        if (conflictApp) {
-                            if (isAutoArrange) {
-                                rearrangeApps();
-                            } else {
-                                // 交换位置
-                                const originalPage = app.page; // 注意：这里 app.page 已经被上面修改了，逻辑有瑕疵
-                                // 实际上我们应该在修改 app.page 之前记录
-                                // 但为了简化，我们直接把 conflictApp 放到 app 原来的位置？
-                                // 不，我们不知道 app 原来的位置。
-                                // 简单交换：把 conflictApp 放到一个临时位置？
-                                // 更好的做法：遍历 apps 找到 conflictApp，修改它的 page/slot 为 app 之前的位置。
-                                // 由于我们没有记录 app 之前的位置，这里只能做简单的位移或者不做处理。
-                                // 修正：我们应该在修改 app 之前记录 oldPage, oldSlot。
-                                // 但这里代码结构限制。
-                                // 妥协方案：如果冲突，把 conflictApp 移到下一个空位。
-                                shiftApps(currentPage, targetSlot, app.id);
-                            }
+                    const oldPage = app.page;
+                    const oldSlot = app.slot;
+                    const oldType = app.type;
+                    
+                    app.type = undefined;
+                    app.page = currentPage;
+                    app.slot = targetSlot;
+                    
+                    const conflictApp = apps.find(a => a.id !== app.id && a.page === currentPage && a.slot === targetSlot && a.type !== 'dock');
+                    
+                    if (conflictApp) {
+                        if (isAutoArrange) {
+                            rearrangeApps();
                         } else {
-                            if (isAutoArrange) {
-                                rearrangeApps();
+                            // 交换位置
+                            if (oldType === 'dock') {
+                                // 如果从 dock 拖出来，且目标有应用，把目标应用放回 dock？
+                                // 简单处理：如果 dock 满了，就不允许交换。
+                                const dockApps = apps.filter(a => a.type === 'dock');
+                                if (dockApps.length < 5) {
+                                    conflictApp.type = 'dock';
+                                    conflictApp.page = -1;
+                                    conflictApp.slot = -1;
+                                } else {
+                                    // 撤销
+                                    app.type = oldType;
+                                    app.page = oldPage;
+                                    app.slot = oldSlot;
+                                }
+                            } else {
+                                conflictApp.page = oldPage;
+                                conflictApp.slot = oldSlot;
                             }
                         }
+                    } else {
+                        if (isAutoArrange) {
+                            rearrangeApps();
+                        }
                     }
+                } else {
+                    // 拖到网格外部，撤销
+                    if (isAutoArrange) rearrangeApps();
                 }
             }
         }
         
         renderApps();
-    }
-}
-
-function shiftApps(page, startSlot, excludeAppId) {
-    const capacity = page === 0 ? itemsPerPageFirst : itemsPerPageOther;
-    const conflictApp = apps.find(a => a.id !== excludeAppId && a.page === page && a.slot === startSlot && a.type !== 'dock');
-    if (conflictApp) {
-        let nextSlot = startSlot + 1;
-        while (apps.find(a => a.page === page && a.slot === nextSlot && a.type !== 'dock')) {
-            nextSlot++;
-        }
-        if (nextSlot < capacity) {
-            conflictApp.slot = nextSlot;
-        }
     }
 }
 
@@ -874,7 +896,6 @@ function updateTime() {
     const now = new Date();
     const hours = String(now.getHours()).padStart(2, '0');
     const minutes = String(now.getMinutes()).padStart(2, '0');
-    const seconds = now.getSeconds();
     
     const statusTime = document.getElementById('status-time');
     if (statusTime) statusTime.textContent = `${hours}:${minutes}`;

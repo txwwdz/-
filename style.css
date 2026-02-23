@@ -12,7 +12,8 @@
     user-select: none;
     -webkit-user-select: none;
     -webkit-touch-callout: none;
-    -webkit-tap-highlight-color: transparent; /* 去除点击高亮 */
+    -webkit-tap-highlight-color: transparent;
+    touch-action: none; /* 禁止浏览器默认触摸行为 */
 }
 
 body {
@@ -139,8 +140,16 @@ body.fullscreen-mode .home-indicator {
 .page { flex: 0 0 100%; width: 100%; height: 100%; padding: 10px 16px; display: flex; flex-direction: column; position: relative; }
 
 /* 时间组件 */
-.widget-container { height: 140px; width: 100%; display: flex; justify-content: center; align-items: center; margin-bottom: 10px; }
-.time-widget { text-align: center; text-shadow: 0 2px 4px rgba(0,0,0,0.2); }
+.widget-container {
+    /* 移除固定高度，由 Grid 控制 */
+    width: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    /* margin-bottom: 10px; */
+}
+
+.time-widget { text-align: center; text-shadow: 0 2px 4px rgba(0,0,0,0.2); pointer-events: none; }
 #widget-time { font-size: 64px; font-weight: 200; line-height: 1; }
 #widget-date { font-size: 18px; margin-top: 5px; opacity: 0.9; }
 
@@ -155,32 +164,49 @@ body.fullscreen-mode .home-indicator {
     height: 100%;
 }
 
-/* 第一页特殊样式：只有4行 */
-.app-grid.first-page {
-    grid-template-rows: repeat(4, 1fr);
-    height: auto; /* 高度自适应 */
-    flex: 1; /* 占满剩余空间 */
-}
-
 /* 平板/PC 适配 */
 @media (min-width: 768px) {
     body.fullscreen-mode .app-grid {
-        grid-template-columns: repeat(8, 1fr); /* 增加列数 */
+        grid-template-columns: repeat(8, 1fr);
         grid-template-rows: repeat(6, 1fr);
-        gap: 20px;
-    }
-    body.fullscreen-mode .app-grid.first-page {
-        grid-template-rows: repeat(6, 1fr); /* 全屏下第一页也用6行，时间组件占位 */
+        gap: 30px; /* 增加间距 */
     }
     body.fullscreen-mode .page {
-        padding: 40px;
+        padding: 60px; /* 增加内边距 */
+    }
+    body.fullscreen-mode .app-item {
+        width: 90px; /* 放大图标容器 */
+        height: 100px;
+    }
+    body.fullscreen-mode .app-icon {
+        width: 72px; /* 放大图标 */
+        height: 72px;
+        font-size: 36px;
+    }
+    body.fullscreen-mode .app-name {
+        font-size: 14px;
+    }
+    /* 全屏模式下时间组件与应用距离 */
+    body.fullscreen-mode .app-item.widget-item {
+        margin-bottom: 20px;
     }
 }
 
-.app-item { display: flex; flex-direction: column; align-items: center; gap: 6px; width: 70px; height: 80px; cursor: pointer; transition: transform 0.1s; position: relative; touch-action: none; }
+.app-item { display: flex; flex-direction: column; align-items: center; gap: 6px; width: 70px; height: 80px; cursor: pointer; transition: transform 0.1s; position: relative; }
 .app-item:active { transform: scale(0.95); opacity: 0.8; }
 .app-icon { width: var(--app-size); height: var(--app-size); border-radius: 14px; display: flex; justify-content: center; align-items: center; font-size: 28px; color: white; box-shadow: 0 2px 10px rgba(0,0,0,0.15); position: relative; overflow: hidden; transition: all 0.3s; }
 .app-name { font-size: 11px; color: white; text-shadow: 0 1px 2px rgba(0,0,0,0.5); text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; width: 100%; }
+
+/* Widget 样式 */
+.app-item.widget-item {
+    width: 100%;
+    height: 100%;
+    justify-content: center;
+    cursor: grab;
+}
+.app-item.widget-item:active {
+    cursor: grabbing;
+}
 
 /* 分页指示器 */
 .pagination { display: flex; justify-content: center; gap: 8px; padding: 10px 0; }
@@ -189,18 +215,21 @@ body.fullscreen-mode .home-indicator {
 
 /* Dock 栏 */
 .dock-bar { height: 90px; background: rgba(255,255,255,0.2); backdrop-filter: blur(15px); margin: 0 12px 12px 12px; border-radius: 28px; display: flex; align-items: center; justify-content: center; padding: 0 10px; }
-.dock-grid { width: 100%; gap: 10px; display: flex; justify-content: center; /* 居中 */ align-items: center; }
+.dock-grid { 
+    width: 100%; 
+    height: 100%;
+    display: flex; 
+    justify-content: center; /* 居中 */
+    align-items: center;
+    gap: 15px; /* 默认间距 */
+}
+.dock-grid .app-item {
+    flex: 0 1 auto; /* 允许缩小 */
+    width: 70px; /* 默认宽度 */
+    height: auto;
+    margin: 0;
+}
 .dock-grid .app-name { display: none; }
-
-/* Dock 栏拥挤模式 (5个应用) */
-.dock-grid.packed .app-item {
-    width: 50px; /* 缩小容器 */
-}
-.dock-grid.packed .app-icon {
-    width: 48px;
-    height: 48px;
-    font-size: 24px;
-}
 
 /* 底部横条 */
 .home-indicator { position: absolute; bottom: 8px; left: 50%; transform: translateX(-50%); width: 120px; height: 5px; background: white; border-radius: 3px; opacity: 0.8; }
@@ -249,7 +278,7 @@ body.fullscreen-mode .home-indicator {
 
 .modal-header {
     padding: 15px;
-    font-weight: bold;
+    font-weight: normal;
     font-size: 16px;
     border-bottom: 1px solid rgba(0,0,0,0.1);
     color: #333;
@@ -294,7 +323,7 @@ body.fullscreen-mode .home-indicator {
 
 .modal-btn.confirm {
     color: #ff3b30;
-    font-weight: bold;
+    font-weight: normal;
 }
 
 /* 应用商店样式 */
@@ -308,23 +337,28 @@ body.fullscreen-mode .home-indicator {
     z-index: 250;
     display: flex;
     flex-direction: column;
-    transform: translateY(0);
-    transition: transform 0.3s ease;
+    transform: scale(0.9); /* 默认缩小 */
+    opacity: 0;
+    pointer-events: none;
+    transition: all 0.3s ease;
 }
 
-.app-store.hidden {
-    transform: translateY(100%);
+.app-store.active {
+    transform: scale(1);
+    opacity: 1;
+    pointer-events: auto;
 }
 
 .app-store-header {
     height: 60px;
     background: white;
     display: flex;
-    justify-content: space-between;
+    justify-content: center; /* 标题居中 */
     align-items: center;
     padding: 0 20px;
     border-bottom: 1px solid #e5e5ea;
     padding-top: 10px;
+    position: relative;
 }
 
 .app-store-title {
@@ -334,21 +368,12 @@ body.fullscreen-mode .home-indicator {
 }
 
 .close-btn {
-    background: #e5e5ea;
-    border: none;
-    width: 30px;
-    height: 30px;
-    border-radius: 50%;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    color: #8e8e93;
-    cursor: pointer;
+    display: none; /* 隐藏关闭按钮 */
 }
 
 .app-store-content {
     flex: 1;
-    overflow: hidden; /* 内部滚动 */
+    overflow: hidden;
     display: flex;
     flex-direction: column;
     color: #000;
@@ -436,7 +461,6 @@ body.fullscreen-mode .home-indicator {
     height: 48px;
 }
 
-/* 商店里的图标稍微小一点 */
 .store-app-icon-wrapper .app-icon {
     width: 48px;
     height: 48px;
@@ -527,7 +551,7 @@ body.fullscreen-mode .home-indicator {
 .store-detail-actions {
     display: flex;
     gap: 15px;
-    margin-top: 10px; /* 下移 */
+    margin-top: 20px; /* 下移 */
 }
 
 .store-detail-btn {
@@ -597,10 +621,10 @@ body.fullscreen-mode .home-indicator {
 }
 
 .store-detail-back {
-    display: none; /* 隐藏返回列表按钮 */
+    display: none;
 }
 
-/* 通用应用窗口 (用于设置、其他应用) */
+/* 通用应用窗口 */
 .app-window {
     position: absolute;
     top: 0;
@@ -608,7 +632,7 @@ body.fullscreen-mode .home-indicator {
     width: 100%;
     height: 100%;
     background: white;
-    z-index: 240; /* 低于应用商店 */
+    z-index: 240;
     display: flex;
     flex-direction: column;
     transform: scale(0.9);
@@ -748,7 +772,7 @@ input:checked + .slider:before {
     position: relative;
     width: 100%;
     height: 100%;
-    background: white; /* 或黑色，根据设计 */
+    background: white;
     border-radius: 14px;
     overflow: hidden;
 }
@@ -757,7 +781,7 @@ input:checked + .slider:before {
     position: relative;
     width: 100%;
     height: 100%;
-    background: #000; /* 黑色表盘 */
+    background: #000;
     border-radius: 14px;
 }
 
@@ -802,23 +826,26 @@ input:checked + .slider:before {
     transform: translate(-50%, -50%);
 }
 
+/* 时钟刻度 */
+.clock-mark {
+    position: absolute;
+    width: 2px;
+    height: 4px;
+    background: white;
+    left: 50%;
+    top: 2px;
+    margin-left: -1px;
+    transform-origin: 50% 27px;
+}
+
+.clock-mark.long {
+    height: 6px;
+    background: #ff3b30;
+    width: 3px;
+    margin-left: -1.5px;
+}
+
 /* 时钟数字 */
 .clock-number {
-    position: absolute;
-    width: 100%;
-    height: 100%;
-    text-align: center;
-    color: white;
-    font-size: 10px;
-    font-weight: bold;
-    top: 0;
-    left: 0;
+    display: none; /* 隐藏数字，用刻度代替 */
 }
-.clock-number span {
-    position: absolute;
-    transform: translateX(-50%);
-}
-.clock-num-12 { top: 2px; left: 50%; }
-.clock-num-3 { top: 50%; right: 2px; transform: translateY(-50%); left: auto; }
-.clock-num-6 { bottom: 2px; left: 50%; top: auto; }
-.clock-num-9 { top: 50%; left: 2px; transform: translateY(-50%); }
