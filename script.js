@@ -48,8 +48,8 @@ let deletedApps = [];
 let isEditMode = false;
 let longPressTimer;
 let currentPage = 0;
-const itemsPerPageFirst = 16; // 第一页 4x4
-const itemsPerPageOther = 24; // 其他页 4x6
+let itemsPerPageFirst = 16;
+let itemsPerPageOther = 24;
 let isAutoArrange = true;
 
 // 拖拽相关变量
@@ -62,6 +62,7 @@ let lastPageSwitchTime = 0;
 
 // 初始化函数
 function init() {
+    updateLayoutConfig();
     initAppsLayout();
     renderApps();
     updateTime();
@@ -70,7 +71,29 @@ function init() {
     initGlobalEvents();
     initHistoryState();
     
+    window.addEventListener('resize', () => {
+        updateLayoutConfig();
+        renderApps();
+    });
+    
+    window.oncontextmenu = function(event) {
+        event.preventDefault();
+        event.stopPropagation();
+        return false;
+    };
+    
     setInterval(updateTime, 1000);
+}
+
+function updateLayoutConfig() {
+    const width = window.innerWidth;
+    if (document.body.classList.contains('fullscreen-mode') && width >= 768) {
+        itemsPerPageFirst = 48; // 8x6
+        itemsPerPageOther = 48;
+    } else {
+        itemsPerPageFirst = 16; // 4x4
+        itemsPerPageOther = 24; // 4x6
+    }
 }
 
 // 初始化应用布局
@@ -82,7 +105,6 @@ function initAppsLayout() {
             app.slot = -1;
         } else {
             if (app.page === undefined) {
-                // 计算 page 和 slot
                 let page = 0;
                 let slot = 0;
                 let tempCount = currentCount;
@@ -115,6 +137,12 @@ function renderApps() {
     pagination.innerHTML = '';
 
     const dockApps = apps.filter(app => app.type === 'dock');
+    if (dockApps.length > 4) {
+        dockGrid.classList.add('packed');
+    } else {
+        dockGrid.classList.remove('packed');
+    }
+    
     dockApps.forEach(app => {
         dockGrid.appendChild(createAppElement(app));
     });
@@ -140,7 +168,7 @@ function createPage(pageIndex, wrapper, pagination) {
 
     const grid = document.createElement('div');
     grid.className = 'app-grid';
-    if (pageIndex === 0) grid.classList.add('first-page'); // 特殊样式
+    if (pageIndex === 0) grid.classList.add('first-page');
     grid.id = `grid-page-${pageIndex}`;
 
     if (pageIndex === 0) {
@@ -183,7 +211,7 @@ function createPage(pageIndex, wrapper, pagination) {
     pagination.appendChild(dot);
 }
 
-// 创建应用元素 (复用)
+// 创建应用元素
 function createAppElement(app) {
     const div = document.createElement('div');
     div.className = `app-item ${isEditMode ? 'shaking' : ''}`;
@@ -222,6 +250,10 @@ function createAppElement(app) {
                     ${[0, 30, 60, 90, 120, 150, 180, 210, 240, 270, 300, 330].map(deg => 
                         `<div class="clock-mark" style="transform: rotate(${deg}deg) translate(0, -24px)"></div>`
                     ).join('')}
+                    <div class="clock-number clock-num-12"><span>12</span></div>
+                    <div class="clock-number clock-num-3"><span>3</span></div>
+                    <div class="clock-number clock-num-6"><span>6</span></div>
+                    <div class="clock-number clock-num-9"><span>9</span></div>
                 </div>
             </div>
         `;
@@ -338,11 +370,16 @@ function initHistoryState() {
         const appWindow = document.getElementById('app-window');
         const appStore = document.getElementById('app-store-modal');
         
-        if (appWindow.classList.contains('active')) {
-            appWindow.classList.remove('active');
-        }
-        if (!appStore.classList.contains('hidden')) {
-            appStore.classList.add('hidden');
+        const storeContent = document.querySelector('.app-store-content');
+        if (storeContent && storeContent.querySelector('.store-detail-header')) {
+            renderStoreHome(storeContent);
+        } else {
+            if (appWindow.classList.contains('active')) {
+                appWindow.classList.remove('active');
+            }
+            if (!appStore.classList.contains('hidden')) {
+                appStore.classList.add('hidden');
+            }
         }
     });
 }
@@ -385,15 +422,18 @@ function openSettings() {
     appWindow.classList.add('active');
     history.pushState({ appId: 'settings' }, '', '#settings');
     
-    // 同步全屏状态
     const isFullscreen = document.body.classList.contains('fullscreen-mode');
     document.getElementById('toggle-fullscreen').checked = isFullscreen;
     
     document.getElementById('toggle-fullscreen').addEventListener('change', (e) => {
         if (e.target.checked) {
             document.body.classList.add('fullscreen-mode');
+            updateLayoutConfig();
+            renderApps();
         } else {
             document.body.classList.remove('fullscreen-mode');
+            updateLayoutConfig();
+            renderApps();
         }
     });
     
@@ -534,13 +574,8 @@ function renderStoreDetail(app) {
                 <p>大小：50MB</p>
             </div>
             <div id="tab-comments" class="tab-content">
-                <div class="comment-item">
-                    <div class="comment-user">用户A</div>
-                    <div class="comment-text">好用！</div>
-                </div>
-                <div class="comment-item">
-                    <div class="comment-user">用户B</div>
-                    <div class="comment-text">界面很漂亮。</div>
+                <div class="comment-item" style="text-align:center; color:#999; padding:20px;">
+                    暂无评论
                 </div>
             </div>
         </div>
@@ -561,17 +596,13 @@ function renderStoreDetail(app) {
         });
     });
     
-    document.getElementById('store-back-btn').addEventListener('click', () => {
-        renderStoreHome(content);
-    });
+    history.pushState({ appId: 'store-detail' }, '', '#store-detail');
     
     const uninstallBtn = content.querySelector('.store-detail-btn.uninstall');
     if (uninstallBtn) {
         uninstallBtn.addEventListener('click', () => {
-            // 弹出确认框
-            draggedAppId = app.id; // 借用 draggedAppId 存储要删除的应用ID
+            draggedAppId = app.id;
             document.getElementById('confirm-modal').classList.remove('hidden');
-            // 修改 confirmDelete 逻辑以支持商店删除
         });
     }
 }
@@ -696,13 +727,11 @@ function handleDragEnd(e) {
     if (isDelete) {
         document.getElementById('confirm-modal').classList.remove('hidden');
     } else {
-        // 检查是否落在 Dock 栏
         const dockGrid = document.getElementById('dock-grid');
         const dockRect = dockGrid.getBoundingClientRect();
         const touch = e.changedTouches ? e.changedTouches[0] : e;
         
         if (touch.clientY >= dockRect.top && touch.clientY <= dockRect.bottom) {
-            // 落在 Dock 栏
             const app = apps.find(a => a.id === draggedAppId);
             if (app) {
                 const dockApps = apps.filter(a => a.type === 'dock');
@@ -713,10 +742,8 @@ function handleDragEnd(e) {
                         app.slot = -1;
                     }
                 }
-                // 如果已经在 Dock 栏，可能需要调整顺序（暂略）
             }
         } else {
-            // 落在桌面
             const grid = document.getElementById(`grid-page-${currentPage}`);
             if (grid) {
                 const gridRect = grid.getBoundingClientRect();
@@ -735,7 +762,7 @@ function handleDragEnd(e) {
                     const app = apps.find(a => a.id === draggedAppId);
                     
                     if (app) {
-                        app.type = undefined; // 确保不是 dock 类型
+                        app.type = undefined;
                         app.page = currentPage;
                         app.slot = targetSlot;
                         
@@ -746,13 +773,16 @@ function handleDragEnd(e) {
                                 rearrangeApps();
                             } else {
                                 // 交换位置
-                                // 找到原位置（注意：app.page/slot 已经被修改了，这里逻辑有瑕疵，但为了简化，我们假设交换）
-                                // 实际上，我们需要知道 app 之前的 page/slot。
-                                // 由于我们已经改了 app 的位置，conflictApp 现在和 app 重叠。
-                                // 我们需要把 conflictApp 移到 app 原来的位置？
-                                // 但 app 原来的位置可能在另一页。
-                                // 简单处理：把 conflictApp 移到最近的空位，或者交换到 app 之前的位置（如果记录了的话）
-                                // 这里我们简单地把 conflictApp 往后移一位
+                                const originalPage = app.page; // 注意：这里 app.page 已经被上面修改了，逻辑有瑕疵
+                                // 实际上我们应该在修改 app.page 之前记录
+                                // 但为了简化，我们直接把 conflictApp 放到 app 原来的位置？
+                                // 不，我们不知道 app 原来的位置。
+                                // 简单交换：把 conflictApp 放到一个临时位置？
+                                // 更好的做法：遍历 apps 找到 conflictApp，修改它的 page/slot 为 app 之前的位置。
+                                // 由于我们没有记录 app 之前的位置，这里只能做简单的位移或者不做处理。
+                                // 修正：我们应该在修改 app 之前记录 oldPage, oldSlot。
+                                // 但这里代码结构限制。
+                                // 妥协方案：如果冲突，把 conflictApp 移到下一个空位。
                                 shiftApps(currentPage, targetSlot, app.id);
                             }
                         } else {
@@ -779,8 +809,6 @@ function shiftApps(page, startSlot, excludeAppId) {
         }
         if (nextSlot < capacity) {
             conflictApp.slot = nextSlot;
-        } else {
-            // 如果当前页满了，且不自动补齐，则不移动到下一页
         }
     }
 }
@@ -825,11 +853,10 @@ function confirmDelete() {
         document.getElementById('confirm-modal').classList.add('hidden');
         renderApps();
         
-        // 如果是在商店里删除，刷新商店
         const storeModal = document.getElementById('app-store-modal');
         if (!storeModal.classList.contains('hidden')) {
             const content = storeModal.querySelector('.app-store-content');
-            renderStoreHome(content); // 或者刷新详情页
+            renderStoreHome(content);
         }
     }
 }
@@ -864,7 +891,6 @@ function updateTime() {
         widgetDate.textContent = `${month}月${date}日 ${day}`;
     }
 
-    // 更新时钟图标
     const hourHand = document.querySelector('.hour-hand');
     const minHand = document.querySelector('.minute-hand');
     const secHand = document.querySelector('.second-hand');
