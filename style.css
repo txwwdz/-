@@ -54,6 +54,7 @@ body.fullscreen-mode .screen {
 }
 
 body.fullscreen-mode .button,
+body.fullscreen-mode .notch,
 body.fullscreen-mode .home-indicator {
     display: none;
 }
@@ -185,7 +186,7 @@ body.fullscreen-mode .home-indicator {
         gap: 30px 20px;
     }
     body.fullscreen-mode .page {
-        padding: 40px;
+        padding: 60px;
     }
     body.fullscreen-mode .app-item {
         width: 90px;
@@ -222,11 +223,11 @@ body.fullscreen-mode .home-indicator {
     }
     body.fullscreen-mode .store-item-name {
         font-size: 20px;
-        margin-left: 10px;
+        margin-left: 20px; /* 增加间距 */
     }
     body.fullscreen-mode .store-item-cat {
         font-size: 14px;
-        margin-left: 10px;
+        margin-left: 20px;
     }
     body.fullscreen-mode .store-search-bar input {
         font-size: 16px;
@@ -238,6 +239,14 @@ body.fullscreen-mode .home-indicator {
     }
     body.fullscreen-mode .store-sidebar {
         width: 120px;
+    }
+    body.fullscreen-mode .store-app-item {
+        padding: 15px 0;
+        border-bottom: 1px solid #e0e0e0; /* 横线更明显 */
+    }
+    body.fullscreen-mode .store-action-btn {
+        padding: 8px 24px;
+        font-size: 15px;
     }
 }
 
@@ -258,6 +267,17 @@ body.fullscreen-mode .home-indicator {
 .app-icon i { pointer-events: none; } 
 .app-name { font-size: 11px; color: white; text-shadow: 0 1px 2px rgba(0,0,0,0.5); text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; width: 100%; }
 
+/* Widget 样式 */
+.app-item.widget-item {
+    width: 100%;
+    height: 100%;
+    justify-content: center;
+    cursor: grab;
+}
+.app-item.widget-item:active {
+    cursor: grabbing;
+}
+
 /* 分页指示器 */
 .pagination { display: flex; justify-content: center; gap: 8px; padding: 10px 0; }
 .dot { width: 6px; height: 6px; border-radius: 50%; background: rgba(255,255,255,0.4); transition: background 0.3s; cursor: pointer; }
@@ -273,10 +293,9 @@ body.fullscreen-mode .home-indicator {
     display: flex; 
     align-items: center; 
     justify-content: center; 
-    padding: 0 30px; /* 增加 padding 确保包裹 */
-    width: fit-content; /* 自适应宽度 */
-    min-width: 280px;
-    max-width: calc(100% - 24px);
+    padding: 0 50px; /* 增加 padding */
+    width: calc(100% - 30px); /* 撑满宽度减去边距 */
+    max-width: none;
 }
 .dock-grid { 
     display: flex; 
@@ -284,9 +303,10 @@ body.fullscreen-mode .home-indicator {
     align-items: center;
     gap: 15px; 
     height: 100%;
+    width: 100%;
 }
 .dock-grid.packed {
-    gap: 10px; /* 5个应用时减小间距 */
+    gap: 10px; 
 }
 .dock-grid .app-item {
     flex: 0 1 auto; 
@@ -343,19 +363,19 @@ body.fullscreen-mode .home-indicator {
 
 .modal-header {
     padding: 15px;
-    font-size: 14px;
-    color: #666; 
-    border-bottom: none; 
-    padding-bottom: 5px;
+    font-weight: normal;
+    font-size: 16px;
+    border-bottom: 1px solid rgba(0,0,0,0.1);
+    color: #333;
     display: flex;
     justify-content: center;
     align-items: center;
 }
 
 .modal-body {
-    padding: 10px 20px 25px 20px;
-    font-size: 18px; 
-    font-weight: normal; 
+    padding: 30px 20px;
+    font-size: 20px;
+    font-weight: normal;
     color: #000;
     display: flex;
     justify-content: center;
@@ -364,7 +384,7 @@ body.fullscreen-mode .home-indicator {
 
 .modal-footer {
     display: flex;
-    border-top: 1px solid rgba(0,0,0,0.1); 
+    border-top: 1px solid rgba(0,0,0,0.1);
 }
 
 .modal-btn {
@@ -406,6 +426,7 @@ body.fullscreen-mode .home-indicator {
     opacity: 0;
     pointer-events: none;
     transition: all 0.3s ease;
+    touch-action: auto; /* 允许滚动 */
 }
 
 .app-store.active {
@@ -418,7 +439,7 @@ body.fullscreen-mode .home-indicator {
     height: 60px;
     background: white;
     display: flex;
-    justify-content: center; 
+    justify-content: center;
     align-items: center;
     padding: 0 20px;
     border-bottom: 1px solid #e5e5ea;
@@ -437,7 +458,7 @@ body.fullscreen-mode .home-indicator {
 
 .app-store-content {
     flex: 1;
-    overflow: hidden; 
+    overflow: hidden;
     display: flex;
     flex-direction: column;
     color: #000;
@@ -487,19 +508,19 @@ body.fullscreen-mode .home-indicator {
 .store-detail-name { font-size: 20px; font-weight: bold; margin-bottom: 5px; }
 .store-detail-cat { font-size: 14px; color: #8e8e93; }
 
+.store-detail-tabs { display: flex; background: white; border-bottom: 1px solid #e5e5ea; margin-top: 10px; }
+.store-tab { flex: 1; text-align: center; padding: 12px; font-size: 15px; color: #666; cursor: pointer; border-bottom: 2px solid transparent; }
+.store-tab.active { color: #007aff; border-bottom-color: #007aff; font-weight: bold; }
+
 .store-detail-actions {
     display: flex;
     gap: 15px;
-    padding: 0 20px 10px 20px; 
+    padding: 0 20px 10px 20px;
     background: white;
     justify-content: flex-end;
 }
 .store-detail-btn { width: 36px; height: 36px; border-radius: 50%; background: #f2f2f7; display: flex; justify-content: center; align-items: center; color: #007aff; font-size: 16px; cursor: pointer; }
 .store-detail-btn.uninstall { color: #ff3b30; }
-
-.store-detail-tabs { display: flex; background: white; border-bottom: 1px solid #e5e5ea; margin-top: 10px; }
-.store-tab { flex: 1; text-align: center; padding: 12px; font-size: 15px; color: #666; cursor: pointer; border-bottom: 2px solid transparent; }
-.store-tab.active { color: #007aff; border-bottom-color: #007aff; font-weight: bold; }
 
 .store-detail-content { flex: 1; background: white; padding: 20px; overflow-y: auto; touch-action: pan-y; }
 .tab-content { display: none; }
@@ -607,7 +628,7 @@ input:checked + .slider:before { transform: translateX(22px); }
     font-size: 9px;
     color: #ff3b30;
     font-weight: bold;
-    margin-top: 4px;
+    margin-top: 4px; /* 上移 */
 }
 
 .calendar-date {
@@ -630,7 +651,7 @@ input:checked + .slider:before { transform: translateX(22px); }
     position: relative;
     width: 100%;
     height: 100%;
-    background: white; 
+    background: white;
     border-radius: 14px;
     display: flex;
     justify-content: center;
@@ -695,13 +716,56 @@ input:checked + .slider:before { transform: translateX(22px); }
     background: white;
     left: calc(50% - 1px);
     top: 2px;
-    transform-origin: 1px 24px; /* 半径约 24px */
+    transform-origin: 1px 24px;
 }
 
 .clock-mark.long {
     height: 6px;
     background: #ff3b30;
-    width: 4px;
-    left: calc(50% - 2px);
-    transform-origin: 2px 24px;
+    width: 2px; /* 变细 */
+    left: calc(50% - 1px);
+    transform-origin: 1px 24px;
 }
+
+/* 计算器样式 */
+.calculator {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    background: #000;
+    color: white;
+}
+
+.calc-display {
+    flex: 1;
+    display: flex;
+    justify-content: flex-end;
+    align-items: flex-end;
+    padding: 20px;
+    font-size: 48px;
+    font-weight: 300;
+}
+
+.calc-buttons {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+    padding: 10px;
+}
+
+.calc-btn {
+    aspect-ratio: 1;
+    border-radius: 50%;
+    border: none;
+    font-size: 24px;
+    font-weight: 500;
+    cursor: pointer;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.calc-btn.gray { background: #a5a5a5; color: black; }
+.calc-btn.orange { background: #ff9f0a; color: white; }
+.calc-btn.dark { background: #333333; color: white; }
+.calc-btn.zero { grid-column: span 2; aspect-ratio: auto; border-radius: 40px; justify-content: flex-start; padding-left: 30px; }

@@ -48,10 +48,10 @@ let deletedApps = [];
 let isEditMode = false;
 let longPressTimer;
 let currentPage = 0;
-let colsPerPage = 4;
-let rowsPerPage = 6;
 let itemsPerPageFirst = 16;
 let itemsPerPageOther = 24;
+let colsPerPage = 4;
+let rowsPerPage = 6;
 
 // 拖拽相关变量
 let draggedAppId = null;
@@ -95,13 +95,13 @@ function updateLayoutConfig() {
     if (document.body.classList.contains('fullscreen-mode') && width >= 768) {
         colsPerPage = 8;
         rowsPerPage = 6;
-        itemsPerPageFirst = 48;
+        itemsPerPageFirst = 48; // 8x6
         itemsPerPageOther = 48;
     } else {
         colsPerPage = 4;
         rowsPerPage = 6;
-        itemsPerPageFirst = 16;
-        itemsPerPageOther = 24;
+        itemsPerPageFirst = 16; // 4x4
+        itemsPerPageOther = 24; // 4x6
     }
 }
 
@@ -135,29 +135,15 @@ function findNextEmptySlot(startPage = 0, startSlot = 0) {
 
 // 初始化应用布局
 function initAppsLayout() {
-    let currentCount = 0;
     apps.forEach(app => {
         if (app.type === 'dock') {
             app.page = -1;
             app.slot = -1;
         } else {
             if (app.page === undefined) {
-                let page = 0;
-                let slot = 0;
-                let tempCount = currentCount;
-                
-                if (tempCount < itemsPerPageFirst) {
-                    page = 0;
-                    slot = tempCount;
-                } else {
-                    tempCount -= itemsPerPageFirst;
-                    page = 1 + Math.floor(tempCount / itemsPerPageOther);
-                    slot = tempCount % itemsPerPageOther;
-                }
-                
-                app.page = page;
-                app.slot = slot;
-                currentCount++;
+                const emptyPos = findNextEmptySlot(0, 0);
+                app.page = emptyPos.page;
+                app.slot = emptyPos.slot;
             }
         }
     });
@@ -280,7 +266,7 @@ function createAppElement(app) {
         for (let i = 0; i < 12; i++) {
             const deg = i * 30;
             const isMain = i % 3 === 0;
-            marksHtml += `<div class="clock-mark ${isMain ? 'long' : ''}" style="transform: rotate(${deg}deg)"></div>`;
+            marksHtml += `<div class="clock-mark ${isMain ? 'long' : ''}" style="transform: rotate(${deg}deg) translate(0, -24px)"></div>`;
         }
         
         iconDiv.innerHTML = `
@@ -298,8 +284,12 @@ function createAppElement(app) {
         `;
         iconDiv.style.backgroundColor = 'white';
     } else if (app.id === 'qq') {
-        // 使用 SVG 替代 FontAwesome
-        iconDiv.innerHTML = `<svg viewBox="0 0 1024 1024" width="30" height="30"><path d="M824.8 613.2c-16-51.4-34.4-94.6-62.7-165.3C766.5 262.2 689.3 112 511.5 112 331.7 112 256.2 265.2 261 447.9c-28.4 70.8-46.7 113.7-62.7 165.3-34 91.5-73.7 266.6-2.2 281.7 46.1 9.9 96.3 12.5 115.5-2.5 17.4-13.5 26.6-46.5 33.7-79.7 40.4 54.3 98.9 97.6 166.1 97.6 67.2 0 125.7-43.3 166.1-97.6 7.1 33.1 16.3 66.2 33.7 79.7 19.2 15 69.4 12.4 115.5 2.5 71.5-15.1 29.8-190.2-2.2-281.7zM511.6 726.1c-74.7 0-134.2-115.3-134.2-257.6s60-117.8 134.2-117.8c74.7 0 134.2 115.3 134.2 257.6s-59.5 117.8-134.2 117.8z" fill="#ffffff"/></svg>`;
+        // 使用 FontAwesome
+        const i = document.createElement('i');
+        i.className = `fab fa-qq`;
+        i.style.color = 'white';
+        i.style.fontSize = '32px';
+        iconDiv.appendChild(i);
         iconDiv.style.backgroundColor = '#12b7f5';
     } else if (app.svgPath) {
         iconDiv.innerHTML = `<svg viewBox="${app.viewBox || '0 0 24 24'}" style="width: 30px; height: 30px; fill: white;"><path d="${app.svgPath}"></path></svg>`;
@@ -363,6 +353,8 @@ function bindAppEvents(element, app) {
                     openSettings();
                 } else if (app.id === 'store') {
                     openAppStore();
+                } else if (app.id === 'calculator') {
+                    openCalculator();
                 } else {
                     openApp(app);
                 }
@@ -393,7 +385,7 @@ function enterEditMode() {
     if (isEditMode) return;
     isEditMode = true;
     document.querySelectorAll('.app-item').forEach(el => {
-        if (!el.classList.contains('placeholder')) el.classList.add('shaking');
+        el.classList.add('shaking');
     });
     if (navigator.vibrate) navigator.vibrate(50);
 }
@@ -457,6 +449,43 @@ function openApp(app) {
     
     appWindow.classList.add('active');
     history.pushState({ appId: app.id }, '', `#${app.id}`);
+}
+
+function openCalculator() {
+    const appWindow = document.getElementById('app-window');
+    const title = document.getElementById('app-window-title');
+    const content = document.getElementById('app-window-content');
+    
+    title.textContent = '计算机';
+    content.innerHTML = `
+        <div class="calculator">
+            <div class="calc-display">0</div>
+            <div class="calc-buttons">
+                <button class="calc-btn gray">AC</button>
+                <button class="calc-btn gray">+/-</button>
+                <button class="calc-btn gray">%</button>
+                <button class="calc-btn orange">÷</button>
+                <button class="calc-btn dark">7</button>
+                <button class="calc-btn dark">8</button>
+                <button class="calc-btn dark">9</button>
+                <button class="calc-btn orange">×</button>
+                <button class="calc-btn dark">4</button>
+                <button class="calc-btn dark">5</button>
+                <button class="calc-btn dark">6</button>
+                <button class="calc-btn orange">-</button>
+                <button class="calc-btn dark">1</button>
+                <button class="calc-btn dark">2</button>
+                <button class="calc-btn dark">3</button>
+                <button class="calc-btn orange">+</button>
+                <button class="calc-btn dark zero">0</button>
+                <button class="calc-btn dark">.</button>
+                <button class="calc-btn orange">=</button>
+            </div>
+        </div>
+    `;
+    
+    appWindow.classList.add('active');
+    history.pushState({ appId: 'calculator' }, '', '#calculator');
 }
 
 function openSettings() {
@@ -546,6 +575,7 @@ function filterStoreApps(keyword, category = 'all') {
     const allApps = [...apps, ...deletedApps];
     
     const filtered = allApps.filter(app => {
+        if (app.type === 'widget') return false;
         const matchKeyword = app.name.includes(keyword) || (app.initials && app.initials.includes(keyword.toLowerCase()));
         const matchCat = category === 'all' || app.category === category;
         return matchKeyword && matchCat;
@@ -607,13 +637,13 @@ function renderStoreDetail(app) {
                 <div class="store-detail-cat">${app.category || '应用'}</div>
             </div>
         </div>
-        <div class="store-detail-tabs">
-            <div class="store-tab active" data-tab="intro">介绍</div>
-            <div class="store-tab" data-tab="comments">评论</div>
-        </div>
         <div class="store-detail-actions">
             <div class="store-detail-btn share"><i class="fas fa-share-alt"></i></div>
             ${isInstalled ? '<div class="store-detail-btn uninstall"><i class="fas fa-trash"></i></div>' : ''}
+        </div>
+        <div class="store-detail-tabs">
+            <div class="store-tab active" data-tab="intro">介绍</div>
+            <div class="store-tab" data-tab="comments">评论</div>
         </div>
         <div class="store-detail-content">
             <div id="tab-intro" class="tab-content active">
@@ -785,7 +815,6 @@ function handleDragEnd(e) {
 
         // 限制 PC 端不能拖到毛玻璃之外的底部
         if (touch.clientY > dockRect.bottom) {
-            // 撤销拖拽
             renderApps();
             return;
         }
