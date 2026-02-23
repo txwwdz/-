@@ -278,8 +278,8 @@ function createAppElement(app) {
     if (app.type === 'widget') {
         div.innerHTML = `
             <div class="time-widget">
-                <div id="widget-time">12:00</div>
-                <div id="widget-date">2月23日 星期日</div>
+                <div class="widget-time-text">12:00</div>
+                <div class="widget-date-text">2月23日 星期日</div>
             </div>
         `;
     } else {
@@ -833,13 +833,10 @@ function handleDragEnd(e) {
                     const oldType = app.type;
                     
                     // 检查目标位置是否被 Widget 占用
-                    const isBlockedByWidget = apps.some(a => a.type === 'widget' && isSlotOccupied(currentPage, targetSlot, app.id));
+                    const isBlockedByWidget = apps.some(a => a.type === 'widget' && a.id !== app.id && isSlotOccupied(currentPage, targetSlot, app.id));
                     
                     if (!isBlockedByWidget) {
-                        app.type = undefined;
-                        app.page = currentPage;
-                        app.slot = targetSlot;
-                        
+                        // 查找目标位置是否有其他应用
                         const conflictApp = apps.find(a => a.id !== app.id && a.page === currentPage && a.slot === targetSlot && a.type !== 'dock');
                         
                         if (conflictApp) {
@@ -850,15 +847,24 @@ function handleDragEnd(e) {
                                     conflictApp.type = 'dock';
                                     conflictApp.page = -1;
                                     conflictApp.slot = -1;
-                                } else {
-                                    app.type = oldType;
-                                    app.page = oldPage;
-                                    app.slot = oldSlot;
+                                    
+                                    app.type = undefined;
+                                    app.page = currentPage;
+                                    app.slot = targetSlot;
                                 }
                             } else {
                                 conflictApp.page = oldPage;
                                 conflictApp.slot = oldSlot;
+                                
+                                app.type = undefined;
+                                app.page = currentPage;
+                                app.slot = targetSlot;
                             }
+                        } else {
+                            // 移动到空位
+                            app.type = undefined;
+                            app.page = currentPage;
+                            app.slot = targetSlot;
                         }
                     }
                 }
