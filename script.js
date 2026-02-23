@@ -280,7 +280,7 @@ function createAppElement(app) {
         for (let i = 0; i < 12; i++) {
             const deg = i * 30;
             const isMain = i % 3 === 0;
-            marksHtml += `<div class="clock-mark ${isMain ? 'long' : ''}" style="transform: rotate(${deg}deg) translate(0, -24px)"></div>`;
+            marksHtml += `<div class="clock-mark ${isMain ? 'long' : ''}" style="transform: rotate(${deg}deg)"></div>`;
         }
         
         iconDiv.innerHTML = `
