@@ -48,6 +48,8 @@ let deletedApps = [];
 let isEditMode = false;
 let longPressTimer;
 let currentPage = 0;
+let colsPerPage = 4;
+let rowsPerPage = 6;
 let itemsPerPageFirst = 16;
 let itemsPerPageOther = 24;
 
@@ -78,7 +80,7 @@ function init() {
         renderApps();
     });
     
-    // 禁用右键菜单和长按选中文本
+    // 禁用右键菜单
     window.oncontextmenu = function(event) {
         event.preventDefault();
         event.stopPropagation();
@@ -91,11 +93,15 @@ function init() {
 function updateLayoutConfig() {
     const width = window.innerWidth;
     if (document.body.classList.contains('fullscreen-mode') && width >= 768) {
-        itemsPerPageFirst = 48; // 8x6
+        colsPerPage = 8;
+        rowsPerPage = 6;
+        itemsPerPageFirst = 48;
         itemsPerPageOther = 48;
     } else {
-        itemsPerPageFirst = 16; // 4x4
-        itemsPerPageOther = 24; // 4x6
+        colsPerPage = 4;
+        rowsPerPage = 6;
+        itemsPerPageFirst = 16;
+        itemsPerPageOther = 24;
     }
 }
 
@@ -119,7 +125,8 @@ function findNextEmptySlot(startPage = 0, startSlot = 0) {
             return { page, slot };
         }
         slot++;
-        if (slot >= itemsPerPageOther) { // 简化逻辑，统一用 itemsPerPageOther
+        const capacity = page === 0 ? itemsPerPageFirst : itemsPerPageOther;
+        if (slot >= capacity) {
             slot = 0;
             page++;
         }
@@ -386,7 +393,7 @@ function enterEditMode() {
     if (isEditMode) return;
     isEditMode = true;
     document.querySelectorAll('.app-item').forEach(el => {
-        el.classList.add('shaking');
+        if (!el.classList.contains('placeholder')) el.classList.add('shaking');
     });
     if (navigator.vibrate) navigator.vibrate(50);
 }
@@ -400,7 +407,8 @@ function exitEditMode() {
 }
 
 function initGlobalEvents() {
-    document.addEventListener('click', (e) => {
+    // 支持触摸和点击退出编辑模式
+    const exitHandler = (e) => {
         if (isEditMode && !isDragging) {
             if (!e.target.closest('.app-item') && 
                 !e.target.closest('.modal-content') && 
@@ -408,7 +416,9 @@ function initGlobalEvents() {
                 exitEditMode();
             }
         }
-    });
+    };
+    document.addEventListener('click', exitHandler);
+    document.addEventListener('touchstart', exitHandler, { passive: true });
 
     document.getElementById('btn-cancel-delete').addEventListener('click', () => {
         document.getElementById('confirm-modal').classList.add('hidden');
@@ -773,6 +783,13 @@ function handleDragEnd(e) {
         const app = apps.find(a => a.id === draggedAppId);
         if (!app) return;
 
+        // 限制 PC 端不能拖到毛玻璃之外的底部
+        if (touch.clientY > dockRect.bottom) {
+            // 撤销拖拽
+            renderApps();
+            return;
+        }
+
         if (touch.clientY >= dockRect.top && touch.clientY <= dockRect.bottom) {
             const dockApps = apps.filter(a => a.type === 'dock');
             if (app.type !== 'dock') {
@@ -789,49 +806,41 @@ function handleDragEnd(e) {
                 const relativeX = touch.clientX - gridRect.left;
                 const relativeY = touch.clientY - gridRect.top;
                 
-                const col = Math.floor(relativeX / (gridRect.width / colsPerPage));
-                const row = Math.floor(relativeY / (gridRect.height / rowsPerPage));
+                const capacity = currentPage === 0 ? itemsPerPageFirst : itemsPerPageOther;
+                const rows = currentPage === 0 ? 4 : 6;
                 
-                if (col >= 0 && col < colsPerPage && row >= 0 && row < rowsPerPage) {
+                const col = Math.floor(relativeX / (gridRect.width / colsPerPage));
+                const row = Math.floor(relativeY / (gridRect.height / rows));
+                
+                if (col >= 0 && col < colsPerPage && row >= 0 && row < rows) {
                     const targetSlot = row * colsPerPage + col;
                     
                     const oldPage = app.page;
                     const oldSlot = app.slot;
                     const oldType = app.type;
                     
-                    // 检查目标位置是否被 Widget 占用
-                    const isBlockedByWidget = apps.some(a => a.type === 'widget' && a.id !== app.id && isSlotOccupied(currentPage, targetSlot, app.id));
+                    app.type = undefined;
+                    app.page = currentPage;
+                    app.slot = targetSlot;
                     
-                    if (!isBlockedByWidget) {
-                        // 查找目标位置是否有其他应用
-                        const conflictApp = apps.find(a => a.id !== app.id && a.page === currentPage && a.slot === targetSlot && a.type !== 'dock');
-                        
-                        if (conflictApp) {
-                            // 交换位置
-                            if (oldType === 'dock') {
-                                const dockApps = apps.filter(a => a.type === 'dock');
-                                if (dockApps.length < 5) {
-                                    conflictApp.type = 'dock';
-                                    conflictApp.page = -1;
-                                    conflictApp.slot = -1;
-                                    
-                                    app.type = undefined;
-                                    app.page = currentPage;
-                                    app.slot = targetSlot;
-                                }
+                    const conflictApp = apps.find(a => a.id !== app.id && a.page === currentPage && a.slot === targetSlot && a.type !== 'dock');
+                    
+                    if (conflictApp) {
+                        // 交换位置
+                        if (oldType === 'dock') {
+                            const dockApps = apps.filter(a => a.type === 'dock');
+                            if (dockApps.length < 5) {
+                                conflictApp.type = 'dock';
+                                conflictApp.page = -1;
+                                conflictApp.slot = -1;
                             } else {
-                                conflictApp.page = oldPage;
-                                conflictApp.slot = oldSlot;
-                                
-                                app.type = undefined;
-                                app.page = currentPage;
-                                app.slot = targetSlot;
+                                app.type = oldType;
+                                app.page = oldPage;
+                                app.slot = oldSlot;
                             }
                         } else {
-                            // 移动到空位
-                            app.type = undefined;
-                            app.page = currentPage;
-                            app.slot = targetSlot;
+                            conflictApp.page = oldPage;
+                            conflictApp.slot = oldSlot;
                         }
                     }
                 }
@@ -936,16 +945,18 @@ function initGestures() {
     let startX = 0;
     let isSwiping = false;
     
-    wrapper.addEventListener('mousedown', (e) => {
+    const startSwipe = (e) => {
         if (isEditMode) return;
-        startX = e.clientX;
+        const touch = e.touches ? e.touches[0] : e;
+        startX = touch.clientX;
         isSwiping = true;
-    });
+    };
     
-    window.addEventListener('mouseup', (e) => {
+    const endSwipe = (e) => {
         if (!isSwiping) return;
         isSwiping = false;
-        const endX = e.clientX;
+        const touch = e.changedTouches ? e.changedTouches[0] : e;
+        const endX = touch.clientX;
         const diff = startX - endX;
         
         const desktopApps = apps.filter(a => a.type !== 'dock');
@@ -960,7 +971,13 @@ function initGestures() {
             }
             updatePageScroll();
         }
-    });
+    };
+
+    wrapper.addEventListener('mousedown', startSwipe);
+    wrapper.addEventListener('touchstart', startSwipe, { passive: true });
+    
+    window.addEventListener('mouseup', endSwipe);
+    window.addEventListener('touchend', endSwipe);
 }
 
 document.addEventListener('DOMContentLoaded', init);
