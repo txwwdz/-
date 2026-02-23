@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>仿手机页面</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <div class="phone-container">
+        <div class="phone-frame">
+            <!-- 侧边按钮 -->
+            <div class="button volume-up"></div>
+            <div class="button volume-down"></div>
+            <div class="button power"></div>
+            
+            <!-- 屏幕内容 -->
+            <div class="screen" id="screen">
+                <!-- 状态栏 -->
+                <div class="status-bar">
+                    <div class="left-info">
+                        <span id="status-time">12:00</span>
+                    </div>
+                    <div class="notch">
+                        <div class="camera"></div>
+                        <div class="speaker"></div>
+                    </div>
+                    <div class="right-info">
+                        <i class="fas fa-signal"></i>
+                        <i class="fas fa-wifi"></i>
+                        <div class="battery-container">
+                            <span id="battery-level">100%</span>
+                            <div class="battery-icon">
+                                <div class="battery-fill" id="battery-fill"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 拖拽删除区域 -->
+                <div id="delete-zone" class="delete-zone">
+                    <i class="fas fa-trash-alt"></i> 拖拽到此处删除
+                </div>
+
+                <!-- 桌面区域 -->
+                <div class="desktop-container" id="desktop-container">
+                    <div class="desktop-wrapper" id="desktop-wrapper">
+                        <!-- JS动态填充 -->
+                    </div>
+                    
+                    <!-- 页面指示器 -->
+                    <div class="pagination" id="pagination">
+                        <!-- JS动态填充 -->
+                    </div>
+                </div>
+
+                <!-- 底部 Dock 栏 -->
+                <div class="dock-bar">
+                    <div class="app-grid dock-grid" id="dock-grid">
+                        <!-- JS动态填充 -->
+                    </div>
+                </div>
+
+                <!-- 底部横条 -->
+                <div class="home-indicator"></div>
+
+                <!-- 确认删除弹窗 -->
+                <div id="confirm-modal" class="modal hidden">
+                    <div class="modal-content">
+                        <div class="modal-header">系统提示</div>
+                        <div class="modal-body">你确定要删除吗？</div>
+                        <div class="modal-footer">
+                            <button id="btn-cancel-delete" class="modal-btn cancel">取消</button>
+                            <button id="btn-confirm-delete" class="modal-btn confirm">删除</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 应用商店弹窗 -->
+                <div id="app-store-modal" class="app-store hidden">
+                    <div class="app-store-header">
+                        <span class="app-store-title">应用商店</span>
+                        <button id="btn-close-store" class="close-btn"><i class="fas fa-times"></i></button>
+                    </div>
+                    <div class="app-store-content">
+                        <h3>已删除应用</h3>
+                        <div id="deleted-apps-list" class="deleted-list">
+                            <!-- JS动态填充 -->
+                        </div>
+                        <div id="no-deleted-apps" class="no-apps-tip">暂无已删除应用</div>
+                    </div>
+                </div>
+
+                <!-- 通用应用窗口 (用于设置等) -->
+                <div id="app-window" class="app-window">
+                    <div class="app-window-header">
+                        <span id="app-window-title">应用名称</span>
+                    </div>
+                    <div id="app-window-content" class="app-window-content">
+                        <!-- JS动态填充 -->
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>

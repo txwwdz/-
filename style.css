@@ -1,0 +1,801 @@
+:root {
+    --phone-width: 360px;
+    --phone-height: 740px;
+    --bezel-color: #1a1a1a;
+    --screen-bg: linear-gradient(135deg, #a8c0ff 0%, #3f2b96 100%);
+    --app-size: 58px;
+    --app-gap: 20px;
+}
+
+* {
+    box-sizing: border-box;
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-touch-callout: none;
+}
+
+body {
+    margin: 0;
+    padding: 0;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    background-color: #f0f2f5;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    overflow: hidden;
+}
+
+/* 手机外框 */
+.phone-container {
+    position: relative;
+    width: calc(var(--phone-width) + 24px);
+    height: calc(var(--phone-height) + 24px);
+    background: #000;
+    border-radius: 50px;
+    box-shadow: 0 0 0 2px #333, 0 20px 50px rgba(0,0,0,0.3);
+    padding: 12px;
+    transition: all 0.3s ease;
+}
+
+/* 全屏模式 */
+body.fullscreen-mode .phone-container {
+    width: 100vw;
+    height: 100vh;
+    border-radius: 0;
+    padding: 0;
+    box-shadow: none;
+}
+
+body.fullscreen-mode .phone-frame,
+body.fullscreen-mode .screen {
+    border-radius: 0;
+}
+
+body.fullscreen-mode .button,
+body.fullscreen-mode .notch,
+body.fullscreen-mode .home-indicator {
+    display: none;
+}
+
+.phone-frame {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    background: #000;
+    border-radius: 40px;
+    overflow: hidden;
+}
+
+/* 侧边按钮 */
+.button {
+    position: absolute;
+    background: #222;
+    border-radius: 2px;
+    left: -14px;
+}
+
+.volume-up { top: 100px; width: 4px; height: 40px; }
+.volume-down { top: 150px; width: 4px; height: 40px; }
+.power { right: -14px; left: auto; top: 120px; width: 4px; height: 60px; }
+
+/* 屏幕 */
+.screen {
+    width: 100%;
+    height: 100%;
+    background: var(--screen-bg);
+    border-radius: 38px;
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    color: white;
+}
+
+/* 状态栏 */
+.status-bar {
+    height: 44px;
+    width: 100%;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0 20px;
+    font-size: 14px;
+    font-weight: 600;
+    z-index: 100;
+    padding-top: 10px;
+}
+
+.notch {
+    position: absolute;
+    top: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 120px;
+    height: 30px;
+    background: #000;
+    border-bottom-left-radius: 16px;
+    border-bottom-right-radius: 16px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 10px;
+    z-index: 101;
+}
+
+.camera { width: 10px; height: 10px; background: #1a1a1a; border-radius: 50%; box-shadow: inset 0 0 2px rgba(255,255,255,0.2); }
+.speaker { width: 40px; height: 4px; background: #222; border-radius: 2px; }
+
+.right-info { display: flex; align-items: center; gap: 6px; }
+.battery-container { display: flex; align-items: center; gap: 4px; }
+.battery-icon { width: 22px; height: 11px; border: 1px solid rgba(255,255,255,0.5); border-radius: 3px; padding: 1px; position: relative; }
+.battery-icon::after { content: ''; position: absolute; right: -3px; top: 3px; width: 2px; height: 3px; background: rgba(255,255,255,0.5); border-radius: 0 1px 1px 0; }
+.battery-fill { height: 100%; background: white; border-radius: 1px; width: 100%; transition: width 0.3s, background-color 0.3s; }
+
+/* 桌面容器 */
+.desktop-container { flex: 1; overflow: hidden; position: relative; display: flex; flex-direction: column; }
+.desktop-wrapper { display: flex; width: 100%; height: 100%; transition: transform 0.3s ease-out; }
+.page { flex: 0 0 100%; width: 100%; height: 100%; padding: 10px 16px; display: flex; flex-direction: column; position: relative; }
+
+/* 时间组件 */
+.widget-container { height: 140px; width: 100%; display: flex; justify-content: center; align-items: center; margin-bottom: 10px; }
+.time-widget { text-align: center; text-shadow: 0 2px 4px rgba(0,0,0,0.2); }
+#widget-time { font-size: 64px; font-weight: 200; line-height: 1; }
+#widget-date { font-size: 18px; margin-top: 5px; opacity: 0.9; }
+
+/* 应用网格 */
+.app-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    grid-template-rows: repeat(6, 1fr);
+    gap: 10px;
+    justify-items: center;
+    align-content: start;
+    height: 100%;
+}
+
+/* 第一页特殊样式：只有4行 */
+.app-grid.first-page {
+    grid-template-rows: repeat(4, 1fr);
+    height: auto; /* 高度自适应 */
+    flex: 1; /* 占满剩余空间 */
+}
+
+.app-item { display: flex; flex-direction: column; align-items: center; gap: 6px; width: 70px; height: 80px; cursor: pointer; transition: transform 0.1s; position: relative; }
+.app-item:active { transform: scale(0.95); opacity: 0.8; }
+.app-icon { width: var(--app-size); height: var(--app-size); border-radius: 14px; display: flex; justify-content: center; align-items: center; font-size: 28px; color: white; box-shadow: 0 2px 10px rgba(0,0,0,0.15); position: relative; overflow: hidden; }
+.app-name { font-size: 11px; color: white; text-shadow: 0 1px 2px rgba(0,0,0,0.5); text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; width: 100%; }
+
+/* 分页指示器 */
+.pagination { display: flex; justify-content: center; gap: 8px; padding: 10px 0; }
+.dot { width: 6px; height: 6px; border-radius: 50%; background: rgba(255,255,255,0.4); transition: background 0.3s; cursor: pointer; }
+.dot.active { background: white; }
+
+/* Dock 栏 */
+.dock-bar { height: 90px; background: rgba(255,255,255,0.2); backdrop-filter: blur(15px); margin: 0 12px 12px 12px; border-radius: 28px; display: flex; align-items: center; justify-content: center; padding: 0 10px; }
+.dock-grid { width: 100%; gap: 15px; display: flex; justify-content: space-evenly; /* 改为 space-evenly 以支持动态数量 */ }
+.dock-grid .app-name { display: none; }
+
+/* 底部横条 */
+.home-indicator { position: absolute; bottom: 8px; left: 50%; transform: translateX(-50%); width: 120px; height: 5px; background: white; border-radius: 3px; opacity: 0.8; }
+::-webkit-scrollbar { display: none; }
+
+/* 震动动画 */
+@keyframes shake { 0% { transform: rotate(0deg); } 25% { transform: rotate(1.5deg); } 50% { transform: rotate(0deg); } 75% { transform: rotate(-1.5deg); } 100% { transform: rotate(0deg); } }
+.app-item.shaking { animation: shake 0.25s infinite; }
+.app-item.shaking:active { transform: scale(1.1); animation: none; z-index: 1000; }
+
+/* 拖拽删除区域 */
+.delete-zone { position: absolute; top: 0; left: 0; width: 100%; height: 80px; background: rgba(255, 59, 48, 0.9); color: white; display: flex; justify-content: center; align-items: center; gap: 10px; font-size: 16px; font-weight: bold; z-index: 200; transform: translateY(-100%); transition: transform 0.3s ease; border-bottom-left-radius: 20px; border-bottom-right-radius: 20px; }
+.delete-zone.visible { transform: translateY(0); }
+.delete-zone.active { background: #ff3b30; transform: scale(1.05) translateY(0); }
+
+/* 模态框通用样式 */
+.modal {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 300;
+    opacity: 1;
+    transition: opacity 0.3s;
+}
+
+.modal.hidden {
+    opacity: 0;
+    pointer-events: none;
+}
+
+.modal-content {
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(10px);
+    width: 80%;
+    border-radius: 14px;
+    overflow: hidden;
+    text-align: center;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+}
+
+.modal-header {
+    padding: 15px;
+    font-weight: bold;
+    font-size: 16px;
+    border-bottom: 1px solid rgba(0,0,0,0.1);
+    color: #333;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.modal-body {
+    padding: 30px 20px; /* 增加 padding */
+    font-size: 20px; /* 字体更大 */
+    font-weight: normal; /* 不加粗 */
+    color: #000;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.modal-footer {
+    display: flex;
+    border-top: 1px solid rgba(0,0,0,0.1);
+}
+
+.modal-btn {
+    flex: 1;
+    padding: 15px;
+    border: none;
+    background: transparent;
+    font-size: 16px;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.modal-btn:active {
+    background: rgba(0,0,0,0.05);
+}
+
+.modal-btn.cancel {
+    color: #007aff;
+    border-right: 1px solid rgba(0,0,0,0.1);
+}
+
+.modal-btn.confirm {
+    color: #ff3b30;
+    font-weight: bold;
+}
+
+/* 应用商店样式 */
+.app-store {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: #f2f2f7;
+    z-index: 250;
+    display: flex;
+    flex-direction: column;
+    transform: translateY(0);
+    transition: transform 0.3s ease;
+}
+
+.app-store.hidden {
+    transform: translateY(100%);
+}
+
+.app-store-header {
+    height: 60px;
+    background: white;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0 20px;
+    border-bottom: 1px solid #e5e5ea;
+    padding-top: 10px;
+}
+
+.app-store-title {
+    font-size: 18px;
+    font-weight: bold;
+    color: #000;
+}
+
+.close-btn {
+    background: #e5e5ea;
+    border: none;
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    color: #8e8e93;
+    cursor: pointer;
+}
+
+.app-store-content {
+    flex: 1;
+    overflow: hidden; /* 内部滚动 */
+    display: flex;
+    flex-direction: column;
+    color: #000;
+}
+
+/* 商店搜索栏 */
+.store-search-bar {
+    padding: 10px 15px;
+    background: white;
+    border-bottom: 1px solid #e5e5ea;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.store-search-bar i {
+    color: #8e8e93;
+}
+
+.store-search-bar input {
+    flex: 1;
+    border: none;
+    background: #f2f2f7;
+    padding: 8px 12px;
+    border-radius: 8px;
+    font-size: 14px;
+    outline: none;
+}
+
+/* 商店主体 */
+.store-body {
+    flex: 1;
+    display: flex;
+    overflow: hidden;
+}
+
+/* 侧边栏 */
+.store-sidebar {
+    width: 80px;
+    background: #f2f2f7;
+    overflow-y: auto;
+    border-right: 1px solid #e5e5ea;
+}
+
+.store-cat {
+    padding: 15px 10px;
+    text-align: center;
+    font-size: 14px;
+    color: #666;
+    cursor: pointer;
+    border-left: 3px solid transparent;
+}
+
+.store-cat.active {
+    background: white;
+    color: #007aff;
+    border-left-color: #007aff;
+    font-weight: bold;
+}
+
+/* 列表区 */
+.store-main-list {
+    flex: 1;
+    background: white;
+    overflow-y: auto;
+    padding: 10px;
+}
+
+.store-app-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 0;
+    border-bottom: 1px solid #f0f0f0;
+}
+
+.store-item-left {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.store-icon-container {
+    width: 48px;
+    height: 48px;
+}
+
+/* 商店里的图标稍微小一点 */
+.store-app-icon-wrapper .app-icon {
+    width: 48px;
+    height: 48px;
+    font-size: 24px;
+    border-radius: 10px;
+}
+.store-app-icon-wrapper .app-name {
+    display: none;
+}
+
+.store-item-info {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.store-item-name {
+    font-size: 16px;
+    font-weight: bold;
+}
+
+.store-item-cat {
+    font-size: 12px;
+    color: #8e8e93;
+}
+
+.store-action-btn {
+    border: none;
+    padding: 6px 16px;
+    border-radius: 16px;
+    font-size: 13px;
+    font-weight: bold;
+    cursor: pointer;
+}
+
+.store-action-btn.download {
+    background: #f2f2f7;
+    color: #007aff;
+}
+
+.store-action-btn.detail {
+    background: #e5e5ea;
+    color: #333;
+}
+
+/* 详情页 */
+.store-detail-header {
+    padding: 20px;
+    background: white;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+}
+
+.store-detail-icon-container {
+    width: 80px;
+    height: 80px;
+}
+.store-detail-icon-container .app-icon {
+    width: 80px;
+    height: 80px;
+    font-size: 40px;
+    border-radius: 18px;
+}
+.store-detail-icon-container .app-name {
+    display: none;
+}
+
+.store-detail-info {
+    flex: 1;
+    margin-left: 15px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
+
+.store-detail-name {
+    font-size: 20px;
+    font-weight: bold;
+    margin-bottom: 5px;
+}
+
+.store-detail-cat {
+    font-size: 14px;
+    color: #8e8e93;
+}
+
+.store-detail-actions {
+    display: flex;
+    gap: 15px;
+}
+
+.store-detail-btn {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: #f2f2f7;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    color: #007aff;
+    font-size: 18px;
+    cursor: pointer;
+}
+
+.store-detail-tabs {
+    display: flex;
+    background: white;
+    border-bottom: 1px solid #e5e5ea;
+}
+
+.store-tab {
+    flex: 1;
+    text-align: center;
+    padding: 12px;
+    font-size: 15px;
+    color: #666;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+}
+
+.store-tab.active {
+    color: #007aff;
+    border-bottom-color: #007aff;
+    font-weight: bold;
+}
+
+.store-detail-content {
+    flex: 1;
+    background: white;
+    padding: 20px;
+    overflow-y: auto;
+}
+
+.tab-content {
+    display: none;
+}
+.tab-content.active {
+    display: block;
+}
+
+.comment-item {
+    margin-bottom: 15px;
+    padding-bottom: 15px;
+    border-bottom: 1px solid #f0f0f0;
+}
+
+.comment-user {
+    font-size: 14px;
+    font-weight: bold;
+    margin-bottom: 4px;
+}
+
+.comment-text {
+    font-size: 14px;
+    color: #333;
+}
+
+.store-detail-back {
+    padding: 10px;
+    background: white;
+    border-top: 1px solid #e5e5ea;
+    text-align: center;
+}
+
+#store-back-btn {
+    background: #f2f2f7;
+    border: none;
+    padding: 8px 20px;
+    border-radius: 8px;
+    color: #007aff;
+    font-weight: bold;
+    cursor: pointer;
+}
+
+/* 通用应用窗口 (用于设置、其他应用) */
+.app-window {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: white;
+    z-index: 240; /* 低于应用商店 */
+    display: flex;
+    flex-direction: column;
+    transform: scale(0.9);
+    opacity: 0;
+    pointer-events: none;
+    transition: all 0.3s ease;
+}
+
+.app-window.active {
+    transform: scale(1);
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.app-window-header {
+    height: 60px;
+    background: #f9f9f9;
+    display: flex;
+    align-items: center;
+    padding: 0 20px;
+    border-bottom: 1px solid #eee;
+    padding-top: 10px;
+    font-weight: bold;
+    font-size: 18px;
+    color: #000;
+}
+
+.app-window-content {
+    flex: 1;
+    padding: 20px;
+    overflow-y: auto;
+    color: #333;
+}
+
+/* 设置项样式 */
+.setting-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 15px 0;
+    border-bottom: 1px solid #eee;
+}
+
+.setting-label {
+    font-size: 16px;
+}
+
+/* 开关样式 */
+.switch {
+    position: relative;
+    display: inline-block;
+    width: 50px;
+    height: 28px;
+}
+
+.switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: #ccc;
+    transition: .4s;
+    border-radius: 34px;
+}
+
+.slider:before {
+    position: absolute;
+    content: "";
+    height: 24px;
+    width: 24px;
+    left: 2px;
+    bottom: 2px;
+    background-color: white;
+    transition: .4s;
+    border-radius: 50%;
+}
+
+input:checked + .slider {
+    background-color: #4cd964;
+}
+
+input:checked + .slider:before {
+    transform: translateX(22px);
+}
+
+.app-placeholder {
+    width: 70px;
+    height: 80px;
+    opacity: 0.3;
+    background: rgba(0,0,0,0.1);
+    border-radius: 14px;
+}
+
+.dragging-clone {
+    position: fixed;
+    pointer-events: none;
+    z-index: 1000;
+    transform: scale(1.1);
+    opacity: 0.9;
+}
+
+/* 日历图标样式 */
+.calendar-icon {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 100%;
+    background: white;
+    color: black;
+}
+
+.calendar-weekday {
+    font-size: 9px;
+    color: #ff3b30;
+    font-weight: bold;
+    margin-top: 4px;
+}
+
+.calendar-date {
+    font-size: 26px;
+    font-weight: 300;
+    line-height: 1;
+}
+
+/* 时钟图标样式 */
+.clock-icon {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    background: white; /* 或黑色，根据设计 */
+    border-radius: 14px;
+    overflow: hidden;
+}
+
+.clock-face {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    background: #000; /* 黑色表盘 */
+    border-radius: 14px;
+}
+
+.clock-hand {
+    position: absolute;
+    bottom: 50%;
+    left: 50%;
+    transform-origin: bottom center;
+    background: white;
+    border-radius: 2px;
+}
+
+.hour-hand {
+    width: 3px;
+    height: 25%;
+    background: white;
+    margin-left: -1.5px;
+}
+
+.minute-hand {
+    width: 2px;
+    height: 35%;
+    background: #ccc;
+    margin-left: -1px;
+}
+
+.second-hand {
+    width: 1px;
+    height: 40%;
+    background: #ff9500;
+    margin-left: -0.5px;
+}
+
+.clock-center {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 4px;
+    height: 4px;
+    background: #ff9500;
+    border-radius: 50%;
+    transform: translate(-50%, -50%);
+}
+
+/* 时钟刻度 */
+.clock-mark {
+    position: absolute;
+    width: 2px;
+    height: 4px;
+    background: white;
+    left: 50%;
+    top: 2px;
+    margin-left: -1px;
+    transform-origin: 50% 27px; /* 29px = 58/2 */
+}
