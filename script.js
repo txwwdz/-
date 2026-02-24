@@ -48,10 +48,10 @@ let deletedApps = [];
 let isEditMode = false;
 let longPressTimer;
 let currentPage = 0;
-let itemsPerPageFirst = 16;
-let itemsPerPageOther = 24;
 let colsPerPage = 4;
 let rowsPerPage = 6;
+let itemsPerPageFirst = 16;
+let itemsPerPageOther = 24;
 
 // 拖拽相关变量
 let draggedAppId = null;
@@ -251,7 +251,7 @@ function createAppElement(app) {
     if (app.name === '日历') {
         const now = new Date();
         const date = now.getDate();
-        const days = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
+        const days = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六'];
         const day = days[now.getDay()];
         
         iconDiv.innerHTML = `
@@ -435,6 +435,7 @@ function initHistoryState() {
             }
         } else if (appWindow.classList.contains('active')) {
             appWindow.classList.remove('active');
+            appWindow.classList.remove('calculator-mode');
         }
     });
 }
@@ -459,33 +460,135 @@ function openCalculator() {
     title.textContent = '计算机';
     content.innerHTML = `
         <div class="calculator">
-            <div class="calc-display">0</div>
+            <div class="calc-display" id="calc-display">0</div>
             <div class="calc-buttons">
-                <button class="calc-btn gray">AC</button>
-                <button class="calc-btn gray">+/-</button>
-                <button class="calc-btn gray">%</button>
-                <button class="calc-btn orange">÷</button>
-                <button class="calc-btn dark">7</button>
-                <button class="calc-btn dark">8</button>
-                <button class="calc-btn dark">9</button>
-                <button class="calc-btn orange">×</button>
-                <button class="calc-btn dark">4</button>
-                <button class="calc-btn dark">5</button>
-                <button class="calc-btn dark">6</button>
-                <button class="calc-btn orange">-</button>
-                <button class="calc-btn dark">1</button>
-                <button class="calc-btn dark">2</button>
-                <button class="calc-btn dark">3</button>
-                <button class="calc-btn orange">+</button>
-                <button class="calc-btn dark zero">0</button>
-                <button class="calc-btn dark">.</button>
-                <button class="calc-btn orange">=</button>
+                <button class="calc-btn gray" data-action="clear">AC</button>
+                <button class="calc-btn gray" data-action="sign">+/-</button>
+                <button class="calc-btn gray" data-action="percent">%</button>
+                <button class="calc-btn orange" data-action="operator" data-op="/">÷</button>
+                <button class="calc-btn dark" data-num="7">7</button>
+                <button class="calc-btn dark" data-num="8">8</button>
+                <button class="calc-btn dark" data-num="9">9</button>
+                <button class="calc-btn orange" data-action="operator" data-op="*">×</button>
+                <button class="calc-btn dark" data-num="4">4</button>
+                <button class="calc-btn dark" data-num="5">5</button>
+                <button class="calc-btn dark" data-num="6">6</button>
+                <button class="calc-btn orange" data-action="operator" data-op="-">-</button>
+                <button class="calc-btn dark" data-num="1">1</button>
+                <button class="calc-btn dark" data-num="2">2</button>
+                <button class="calc-btn dark" data-num="3">3</button>
+                <button class="calc-btn orange" data-action="operator" data-op="+">+</button>
+                <button class="calc-btn dark zero" data-num="0">0</button>
+                <button class="calc-btn dark" data-action="decimal">.</button>
+                <button class="calc-btn orange" data-action="calculate">=</button>
             </div>
         </div>
     `;
     
     appWindow.classList.add('active');
+    appWindow.classList.add('calculator-mode');
     history.pushState({ appId: 'calculator' }, '', '#calculator');
+
+    // Calculator Logic
+    let currentInput = '0';
+    let previousInput = null;
+    let operator = null;
+    let shouldResetScreen = false;
+
+    const display = document.getElementById('calc-display');
+
+    const updateDisplay = () => {
+        // 简单处理长数字
+        if (currentInput.length > 9) {
+            display.style.fontSize = '32px';
+        } else {
+            display.style.fontSize = '48px';
+        }
+        display.textContent = currentInput;
+    };
+
+    const handleNumber = (num) => {
+        if (currentInput === '0' || shouldResetScreen) {
+            currentInput = num;
+            shouldResetScreen = false;
+        } else {
+            currentInput += num;
+        }
+        updateDisplay();
+    };
+
+    const handleOperator = (op) => {
+        if (operator !== null && !shouldResetScreen) calculate();
+        previousInput = currentInput;
+        operator = op;
+        shouldResetScreen = true;
+    };
+
+    const calculate = () => {
+        if (operator === null || shouldResetScreen) return;
+        let result = 0;
+        const prev = parseFloat(previousInput);
+        const current = parseFloat(currentInput);
+
+        switch (operator) {
+            case '+': result = prev + current; break;
+            case '-': result = prev - current; break;
+            case '*': result = prev * current; break;
+            case '/': result = prev / current; break;
+        }
+
+        // 处理精度问题和长度
+        currentInput = String(parseFloat(result.toPrecision(12)));
+        operator = null;
+        shouldResetScreen = true;
+        updateDisplay();
+    };
+
+    const handleAction = (action, btn) => {
+        switch (action) {
+            case 'clear':
+                currentInput = '0';
+                previousInput = null;
+                operator = null;
+                shouldResetScreen = false;
+                updateDisplay();
+                break;
+            case 'sign':
+                currentInput = String(parseFloat(currentInput) * -1);
+                updateDisplay();
+                break;
+            case 'percent':
+                currentInput = String(parseFloat(currentInput) / 100);
+                updateDisplay();
+                break;
+            case 'operator':
+                handleOperator(btn.dataset.op);
+                break;
+            case 'decimal':
+                if (shouldResetScreen) {
+                    currentInput = '0.';
+                    shouldResetScreen = false;
+                } else if (!currentInput.includes('.')) {
+                    currentInput += '.';
+                }
+                updateDisplay();
+                break;
+            case 'calculate':
+                calculate();
+                break;
+        }
+    };
+
+    const buttons = content.querySelectorAll('.calc-btn');
+    buttons.forEach(btn => {
+        btn.addEventListener('click', () => {
+            if (btn.dataset.num) {
+                handleNumber(btn.dataset.num);
+            } else if (btn.dataset.action) {
+                handleAction(btn.dataset.action, btn);
+            }
+        });
+    });
 }
 
 function openSettings() {
@@ -835,13 +938,10 @@ function handleDragEnd(e) {
                 const relativeX = touch.clientX - gridRect.left;
                 const relativeY = touch.clientY - gridRect.top;
                 
-                const capacity = currentPage === 0 ? itemsPerPageFirst : itemsPerPageOther;
-                const rows = currentPage === 0 ? 4 : 6;
-                
                 const col = Math.floor(relativeX / (gridRect.width / colsPerPage));
-                const row = Math.floor(relativeY / (gridRect.height / rows));
+                const row = Math.floor(relativeY / (gridRect.height / rowsPerPage));
                 
-                if (col >= 0 && col < colsPerPage && row >= 0 && row < rows) {
+                if (col >= 0 && col < colsPerPage && row >= 0 && row < rowsPerPage) {
                     const targetSlot = row * colsPerPage + col;
                     
                     const oldPage = app.page;
