@@ -733,11 +733,11 @@ input:checked + .slider:before { transform: translateX(22px); }
     transition: all 0.3s ease;
 }
 
-/* 退出时一闪而过（更快的过渡） */
+/* 恢复计算机退出动画，但保持黑色背景防止影子 */
 .app-window.calculator-mode:not(.active) {
-    transition: none !important; /* 彻底取消过渡，实现一闪而过 */
-    transform: none !important; /* 取消缩放，防止产生影子 */
-    opacity: 0 !important;
+    transition: all 0.3s ease-out;
+    opacity: 0;
+    transform: scale(0.9);
 }
 
 .app-window.calculator-mode .app-window-header {

@@ -380,6 +380,11 @@ function enterEditMode() {
         el.classList.add('shaking');
     });
     if (navigator.vibrate) navigator.vibrate(50);
+    
+    // 进入编辑模式时推送历史记录，使返回键可以退出编辑模式
+    if (window.location.hash !== '#edit') {
+        history.pushState({ editMode: true }, '', '#edit');
+    }
 }
 
 function exitEditMode() {
@@ -391,20 +396,6 @@ function exitEditMode() {
 }
 
 function initGlobalEvents() {
-    // 支持触摸和点击退出编辑模式
-    const exitHandler = (e) => {
-        if (isEditMode && !isDragging) {
-            // 只要点击的不是应用图标、弹窗或删除区域，就视为点击空白处，退出编辑模式
-            if (!e.target.closest('.app-item') && 
-                !e.target.closest('.modal-content') && 
-                !e.target.closest('.delete-zone')) {
-                exitEditMode();
-            }
-        }
-    };
-    document.addEventListener('click', exitHandler);
-    document.addEventListener('touchstart', exitHandler, { passive: true });
-
     // 点击电源键退出编辑模式
     const powerBtn = document.querySelector('.power');
     if (powerBtn) {
@@ -426,6 +417,12 @@ function initGlobalEvents() {
 
 function initHistoryState() {
     window.addEventListener('popstate', (event) => {
+        // 如果处于编辑模式，点击返回键退出编辑模式
+        if (isEditMode) {
+            exitEditMode();
+            return;
+        }
+
         const appWindow = document.getElementById('app-window');
         const appStore = document.getElementById('app-store-modal');
         
@@ -836,7 +833,11 @@ function handleDragStart(e, app, element) {
     draggedElement.style.top = `${touch.clientY - 40}px`;
     
     document.body.appendChild(draggedElement);
-    element.style.opacity = '0';
+    // 延迟隐藏原图标，防止轻点时闪烁或消失
+    setTimeout(() => {
+        if (isDragging) element.style.opacity = '0';
+    }, 50);
+    
     isDragging = true;
     
     const moveEvent = e.type === 'touchstart' ? 'touchmove' : 'mousemove';
@@ -882,25 +883,28 @@ function handleDragMove(e) {
     const relativeX = touch.clientX - screenRect.left;
     const screenWidth = screenRect.width;
     
-    if (Date.now() - lastPageSwitchTime > 1000) {
-        if (relativeX < 50 && currentPage > 0) {
+    // 优化翻页判定：在震动模式下，只要靠近边缘就翻页
+    if (Date.now() - lastPageSwitchTime > 600) {
+        if (relativeX < 60 && currentPage > 0) {
             currentPage--;
             updatePageScroll();
             lastPageSwitchTime = Date.now();
-        } else if (relativeX > screenWidth - 50) {
+        } else if (relativeX > screenWidth - 60) {
             const desktopApps = apps.filter(a => a.type !== 'dock');
             let maxPage = 0;
             desktopApps.forEach(a => { if(a.page > maxPage) maxPage = a.page; });
             
-            if (currentPage === maxPage) {
+            if (currentPage === maxPage && maxPage < 5) { // 限制最大页数
                 const wrapper = document.getElementById('desktop-wrapper');
                 const pagination = document.getElementById('pagination');
                 createPage(maxPage + 1, wrapper, pagination);
             }
             
-            currentPage++;
-            updatePageScroll();
-            lastPageSwitchTime = Date.now();
+            if (currentPage < maxPage || (currentPage === maxPage && maxPage < 5)) {
+                currentPage++;
+                updatePageScroll();
+                lastPageSwitchTime = Date.now();
+            }
         }
     }
 }
@@ -909,6 +913,9 @@ function handleDragEnd(e) {
     if (!isDragging) return;
     isDragging = false;
     
+    // 确保所有原图标恢复显示
+    document.querySelectorAll('.app-item').forEach(el => el.style.opacity = '1');
+
     const deleteZone = document.getElementById('delete-zone');
     const isDelete = deleteZone.classList.contains('active');
     
@@ -951,8 +958,12 @@ function handleDragEnd(e) {
                 const relativeY = touch.clientY - gridRect.top;
                 
                 const col = Math.floor(relativeX / (gridRect.width / colsPerPage));
-                const row = Math.floor(relativeY / (gridRect.height / rowsPerPage));
+                let row = Math.floor(relativeY / (gridRect.height / rowsPerPage));
                 
+                // 针对第一页（有 widget），限制行数，防止应用挪到不可见区域
+                const maxRows = currentPage === 0 ? 4 : 6;
+                if (row >= maxRows) row = maxRows - 1;
+
                 // 严格边界检查：必须在网格范围内，且不能在第一页的 widget 区域（row < 0）
                 if (col >= 0 && col < colsPerPage && row >= 0 && row < rowsPerPage) {
                     const targetSlot = row * colsPerPage + col;
