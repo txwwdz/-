@@ -18,13 +18,50 @@
             <!-- 屏幕内容 -->
             <div class="screen" id="screen">
                 <!-- 状态栏 -->
-                <div class="status-bar">
+                <div class="status-bar" id="global-status-bar">
                     <div class="left-info">
                         <span id="status-time">12:00</span>
                     </div>
-                    <div class="notch">
+                    <div class="notch" id="notch">
                         <div class="camera"></div>
                         <div class="speaker"></div>
+                    </div>
+
+                    <!-- 灵动岛展开面板 -->
+                    <div id="island-panel" class="island-panel hidden">
+                        <div class="island-music-container">
+                            <div class="island-music-top">
+                                <div class="vinyl-record-wrapper" id="vinyl-wrapper">
+                                    <div class="vinyl-needle"></div>
+                                    <div class="vinyl-record" id="vinyl-record">
+                                        <img src="https://via.placeholder.com/150" alt="cover" id="music-cover">
+                                    </div>
+                                </div>
+                                <div class="music-info-right">
+                                    <div class="music-name" id="island-music-name" contenteditable="true">音乐日记☆ 𖦤·˖✶</div>
+                                    <div class="music-artist" id="island-music-artist" contenteditable="true">ᖰ⑅˶•▿•˶⑅ᖳ</div>
+                                </div>
+                            </div>
+                            <div class="music-progress-container">
+                                <div class="music-wave-text" id="music-wave-text" contenteditable="true">
+                                    <span>♫</span><span>•</span><span>*</span><span>¨</span><span>*</span><span>•</span><span>.</span><span>¸</span><span>¸</span><span>♪</span><span>✧</span>
+                                </div>
+                                <input type="range" class="music-progress" id="music-progress" value="0" min="0" max="100">
+                            </div>
+                            <div class="music-controls-row">
+                                <div class="controls-left-mode">
+                                    <i class="fas fa-retweet" id="music-mode-btn" title="顺序播放"></i>
+                                </div>
+                                <div class="controls-main">
+                                    <i class="fas fa-backward" id="music-prev"></i>
+                                    <i class="fas fa-play" id="music-play-pause"></i>
+                                    <i class="fas fa-forward" id="music-next"></i>
+                                </div>
+                                <div class="controls-right-icons">
+                                    <i class="fas fa-list" id="music-list-btn"></i>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                     <div class="right-info">
                         <i class="fas fa-signal"></i>
@@ -74,6 +111,44 @@
                     </div>
                 </div>
 
+                <!-- 音乐列表弹窗 -->
+                <div id="music-list-modal" class="music-list-modal hidden">
+                    <div class="music-list-header">
+                        <span class="music-list-title">音乐列表</span>
+                        <i class="fas fa-cloud-upload-alt" id="music-upload-trigger"></i>
+                    </div>
+                    <div class="music-search-bar">
+                        <input type="text" id="music-search-input" placeholder="搜索网易云、QQ、酷狗音乐...">
+                        <i class="fas fa-search" id="music-search-btn"></i>
+                    </div>
+                    <div class="music-list-content" id="music-list-content">
+                        <!-- 搜索结果或播放列表 -->
+                    </div>
+                    <div class="music-list-footer">
+                        <button id="btn-close-music-list">关闭</button>
+                    </div>
+                </div>
+
+                <!-- 图片上传与编辑弹窗 -->
+                <div id="upload-modal" class="modal hidden">
+                    <div class="modal-content">
+                        <div class="modal-header" style="font-size: 18px;">自定义封面</div>
+                        <div class="modal-body" style="flex-direction: column; gap: 15px;">
+                            <div class="cover-preview-container">
+                                <img id="cover-preview-img" src="https://via.placeholder.com/150">
+                                <div class="cover-crop-overlay"></div>
+                            </div>
+                            <input type="text" id="cover-url-input" placeholder="输入图片URL..." style="width: 100%; padding: 8px; border-radius: 5px; border: 1px solid #ccc;">
+                            <button id="btn-local-upload" class="modal-btn" style="background: #007aff; color: white; border-radius: 5px; width: 100%;">选择本地图片</button>
+                            <input type="file" id="local-file-input" hidden accept="image/*">
+                        </div>
+                        <div class="modal-footer">
+                            <button id="btn-cancel-upload" class="modal-btn cancel">取消</button>
+                            <button id="btn-confirm-upload" class="modal-btn confirm" style="color: #007aff;">确定</button>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- 应用商店弹窗 -->
                 <div id="app-store-modal" class="app-store hidden">
                     <div class="app-store-header">
@@ -89,7 +164,7 @@
                     </div>
                 </div>
 
-                <!-- 通用应用窗口 (用于设置等) -->
+                <!-- 通用应用窗口 -->
                 <div id="app-window" class="app-window">
                     <div class="app-window-header">
                         <span id="app-window-title">应用名称</span>

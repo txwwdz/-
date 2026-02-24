@@ -1,12 +1,9 @@
-// 应用数据配置
-let apps = [
-    // Dock栏应用 (4个)
+// 初始应用数据
+const INITIAL_APPS = [
     { id: 'phone', name: '电话', icon: 'fa-phone', color: '#4cd964', type: 'dock', category: '通讯', initials: 'dh' },
     { id: 'message', name: '短信', icon: 'fa-comment', color: '#4cd964', type: 'dock', category: '通讯', initials: 'dx' },
     { id: 'wechat', name: '微信', icon: 'fa-comments', color: '#07c160', type: 'dock', text: 'WeChat', category: '通讯', initials: 'wx' },
     { id: 'browser', name: '浏览器', icon: 'fa-compass', color: '#007aff', type: 'dock', category: '工具', initials: 'llq' },
-
-    // 桌面应用
     { id: 'qq', name: 'QQ', icon: 'fa-qq', color: '#12b7f5', type: 'brand', category: '通讯', initials: 'qq' },
     { id: 'worldbook', name: '世界书', icon: 'fa-book-atlas', color: '#ffab91', category: '阅读', initials: 'sjs' },
     { id: 'role', name: '角色', icon: 'fa-user-group', color: '#ff9800', category: '娱乐', initials: 'js' },
@@ -44,6 +41,7 @@ let apps = [
     { id: 'game', name: '游戏', icon: 'fa-gamepad', color: '#ff3b30', category: '游戏', initials: 'yx' }
 ];
 
+let apps = JSON.parse(JSON.stringify(INITIAL_APPS));
 let deletedApps = [];
 let isEditMode = false;
 let longPressTimer;
@@ -64,8 +62,48 @@ let touchStartTime = 0;
 let touchStartX = 0;
 let touchStartY = 0;
 
+// 音乐播放器状态
+let musicState = {
+    isPlaying: false,
+    currentTrackIndex: 0,
+    progress: 0,
+    playMode: 'loop', // loop, random, single
+    customName: '音乐日记☆ 𖦤·˖✶',
+    customArtist: 'ᖰ⑅˶•▿•˶⑅ᖳ',
+    customCover: 'https://via.placeholder.com/150',
+    playlist: [
+        { name: '七里香', artist: '周杰伦', cover: 'https://p2.music.126.net/8y99_8YvX_8YvX_8YvX_8YvX==/109951165647004069.jpg', source: '网易云', isVip: false },
+        { name: '晴天', artist: '周杰伦', cover: 'https://p1.music.126.net/9l_g_v_v_v_v_v_v_v_v_v==/109951165647004069.jpg', source: 'QQ音乐', isVip: true }
+    ]
+};
+
+// 设置状态
+let settings = {
+    hideStatusBarInApp: false
+};
+
+// 数据持久化
+function saveData() {
+    localStorage.setItem('phone_apps', JSON.stringify(apps));
+    localStorage.setItem('phone_deleted_apps', JSON.stringify(deletedApps));
+    localStorage.setItem('phone_settings', JSON.stringify(settings));
+    localStorage.setItem('phone_music', JSON.stringify(musicState));
+}
+
+function loadData() {
+    const savedApps = localStorage.getItem('phone_apps');
+    const savedDeleted = localStorage.getItem('phone_deleted_apps');
+    const savedSettings = localStorage.getItem('phone_settings');
+    const savedMusic = localStorage.getItem('phone_music');
+    if (savedApps) apps = JSON.parse(savedApps);
+    if (savedDeleted) deletedApps = JSON.parse(savedDeleted);
+    if (savedSettings) settings = JSON.parse(savedSettings);
+    if (savedMusic) musicState = JSON.parse(savedMusic);
+}
+
 // 初始化函数
 function init() {
+    loadData();
     updateLayoutConfig();
     initAppsLayout();
     renderApps();
@@ -74,13 +112,13 @@ function init() {
     initGestures();
     initGlobalEvents();
     initHistoryState();
+    initMusicPlayer();
     
     window.addEventListener('resize', () => {
         updateLayoutConfig();
         renderApps();
     });
     
-    // 禁用右键菜单
     window.oncontextmenu = function(event) {
         event.preventDefault();
         event.stopPropagation();
@@ -93,19 +131,12 @@ function init() {
 function updateLayoutConfig() {
     const width = window.innerWidth;
     if (document.body.classList.contains('fullscreen-mode') && width >= 768) {
-        colsPerPage = 8;
-        rowsPerPage = 6;
-        itemsPerPageFirst = 48; // 8x6
-        itemsPerPageOther = 48;
+        colsPerPage = 8; rowsPerPage = 6; itemsPerPageFirst = 48; itemsPerPageOther = 48;
     } else {
-        colsPerPage = 4;
-        rowsPerPage = 6;
-        itemsPerPageFirst = 16; // 4x4
-        itemsPerPageOther = 24; // 4x6
+        colsPerPage = 4; rowsPerPage = 6; itemsPerPageFirst = 16; itemsPerPageOther = 24;
     }
 }
 
-// 检查某个格子是否被占用
 function isSlotOccupied(page, slot, excludeAppId = null) {
     return apps.some(app => {
         if (app.id === excludeAppId) return false;
@@ -115,173 +146,90 @@ function isSlotOccupied(page, slot, excludeAppId = null) {
     });
 }
 
-// 寻找下一个空位
 function findNextEmptySlot(startPage = 0, startSlot = 0) {
-    let page = startPage;
-    let slot = startSlot;
-    
+    let page = startPage; let slot = startSlot;
     while (true) {
-        if (!isSlotOccupied(page, slot)) {
-            return { page, slot };
-        }
+        if (!isSlotOccupied(page, slot)) return { page, slot };
         slot++;
         const capacity = page === 0 ? itemsPerPageFirst : itemsPerPageOther;
-        if (slot >= capacity) {
-            slot = 0;
-            page++;
-        }
+        if (slot >= capacity) { slot = 0; page++; }
     }
 }
 
-// 初始化应用布局
 function initAppsLayout() {
     apps.forEach(app => {
-        if (app.type === 'dock') {
-            app.page = -1;
-            app.slot = -1;
-        } else {
-            if (app.page === undefined) {
-                const emptyPos = findNextEmptySlot(0, 0);
-                app.page = emptyPos.page;
-                app.slot = emptyPos.slot;
-            }
+        if (app.type === 'dock') { app.page = -1; app.slot = -1; }
+        else if (app.page === undefined) {
+            const emptyPos = findNextEmptySlot(0, 0);
+            app.page = emptyPos.page; app.slot = emptyPos.slot;
         }
     });
 }
 
-// 渲染应用
 function renderApps() {
     const dockGrid = document.getElementById('dock-grid');
     const wrapper = document.getElementById('desktop-wrapper');
     const pagination = document.getElementById('pagination');
-    
-    dockGrid.innerHTML = '';
-    wrapper.innerHTML = '';
-    pagination.innerHTML = '';
-
+    dockGrid.innerHTML = ''; wrapper.innerHTML = ''; pagination.innerHTML = '';
     const dockApps = apps.filter(app => app.type === 'dock');
-    
-    dockApps.forEach(app => {
-        dockGrid.appendChild(createAppElement(app));
-    });
-
+    dockApps.forEach(app => dockGrid.appendChild(createAppElement(app)));
     const desktopApps = apps.filter(app => app.type !== 'dock');
-    let maxPage = 0;
-    desktopApps.forEach(app => {
-        if (app.page > maxPage) maxPage = app.page;
-    });
-    
-    // 确保当前页不超出 maxPage
+    let maxPage = 0; desktopApps.forEach(app => { if (app.page > maxPage) maxPage = app.page; });
     if (currentPage > maxPage) currentPage = maxPage;
     if (currentPage < 0) currentPage = 0;
-    
-    for (let i = 0; i <= maxPage; i++) {
-        createPage(i, wrapper, pagination);
-    }
-    
-    updateTime();
-    updatePageScroll();
+    for (let i = 0; i <= maxPage; i++) createPage(i, wrapper, pagination);
+    updateTime(); updatePageScroll();
 }
 
 function createPage(pageIndex, wrapper, pagination) {
     const page = document.createElement('div');
-    page.className = 'page';
-    page.id = `page-${pageIndex}`;
-
+    page.className = 'page'; page.id = `page-${pageIndex}`;
     const grid = document.createElement('div');
     grid.className = 'app-grid';
     if (pageIndex === 0) grid.classList.add('first-page');
     grid.id = `grid-page-${pageIndex}`;
-
     if (pageIndex === 0) {
         const widgetContainer = document.createElement('div');
         widgetContainer.className = 'widget-container';
-        widgetContainer.innerHTML = `
-            <div class="time-widget">
-                <div id="widget-time">12:00</div>
-                <div id="widget-date">2月23日 星期日</div>
-            </div>
-        `;
+        widgetContainer.innerHTML = `<div class="time-widget"><div id="widget-time">12:00</div><div id="widget-date">2月23日 星期日</div></div>`;
         page.appendChild(widgetContainer);
     }
-
     const capacity = pageIndex === 0 ? itemsPerPageFirst : itemsPerPageOther;
-
     for (let i = 0; i < capacity; i++) {
         const app = apps.find(a => a.page === pageIndex && a.slot === i && a.type !== 'dock');
-        if (app) {
-            grid.appendChild(createAppElement(app));
-        } else {
+        if (app) grid.appendChild(createAppElement(app));
+        else {
             const placeholder = document.createElement('div');
             placeholder.className = 'app-item placeholder';
             grid.appendChild(placeholder);
         }
     }
-
-    page.appendChild(grid);
-    wrapper.appendChild(page);
-
+    page.appendChild(grid); wrapper.appendChild(page);
     const dot = document.createElement('div');
     dot.className = `dot ${pageIndex === currentPage ? 'active' : ''}`;
     dot.dataset.index = pageIndex;
-    dot.addEventListener('click', () => {
-        if (!isEditMode) {
-            currentPage = pageIndex;
-            updatePageScroll();
-        }
-    });
+    dot.addEventListener('click', () => { if (!isEditMode) { currentPage = pageIndex; updatePageScroll(); } });
     pagination.appendChild(dot);
 }
 
-// 创建应用元素
 function createAppElement(app) {
     const div = document.createElement('div');
     div.className = `app-item ${isEditMode ? 'shaking' : ''}`;
     div.dataset.id = app.id;
-    
     const iconDiv = document.createElement('div');
     iconDiv.className = 'app-icon';
-    
-    if (app.color && app.color.includes('gradient')) {
-        iconDiv.style.background = app.color;
-    } else {
-        iconDiv.style.backgroundColor = app.color || '#ccc';
-    }
+    if (app.color && app.color.includes('gradient')) iconDiv.style.background = app.color;
+    else iconDiv.style.backgroundColor = app.color || '#ccc';
     
     if (app.name === '日历') {
         const now = new Date();
-        const date = now.getDate();
-        const days = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六'];
-        const day = days[now.getDay()];
-        
-        iconDiv.innerHTML = `
-            <div class="calendar-icon">
-                <div class="calendar-weekday">${day}</div>
-                <div class="calendar-date">${date}</div>
-            </div>
-        `;
+        iconDiv.innerHTML = `<div class="calendar-icon"><div class="calendar-weekday">${['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六'][now.getDay()]}</div><div class="calendar-date">${now.getDate()}</div></div>`;
         iconDiv.style.backgroundColor = 'white';
     } else if (app.name === '时钟') {
-        iconDiv.innerHTML = `
-            <div class="clock-icon">
-                <div class="clock-face">
-                    <div class="clock-circle">
-                        <div class="clock-hand hour-hand" id="clock-hour-${app.id}"></div>
-                        <div class="clock-hand minute-hand" id="clock-min-${app.id}"></div>
-                        <div class="clock-hand second-hand" id="clock-sec-${app.id}"></div>
-                        <div class="clock-center"></div>
-                    </div>
-                </div>
-            </div>
-        `;
+        iconDiv.innerHTML = `<div class="clock-icon"><div class="clock-face"><div class="clock-circle"><div class="clock-hand hour-hand"></div><div class="clock-hand minute-hand"></div><div class="clock-hand second-hand"></div><div class="clock-center"></div></div></div></div>`;
         iconDiv.style.backgroundColor = 'white';
     } else if (app.id === 'qq') {
-        // 使用 FontAwesome
-        const i = document.createElement('i');
-        i.className = `fab fa-qq`;
-        i.style.color = 'white';
-        i.style.fontSize = '32px';
-        iconDiv.appendChild(i);
+        iconDiv.innerHTML = `<i class="fab fa-qq" style="color:white; font-size:32px;"></i>`;
         iconDiv.style.backgroundColor = '#12b7f5';
     } else if (app.svgPath) {
         iconDiv.innerHTML = `<svg viewBox="${app.viewBox || '0 0 24 24'}" style="width: 30px; height: 30px; fill: white;"><path d="${app.svgPath}"></path></svg>`;
@@ -289,159 +237,87 @@ function createAppElement(app) {
         iconDiv.innerHTML = app.customHtml;
     } else {
         const i = document.createElement('i');
-        if (app.type === 'brand') {
-            i.className = `fab ${app.icon}`;
-        } else {
-            i.className = `fas ${app.icon}`;
-        }
-        if (app.textColor) {
-            i.style.color = app.textColor;
-        }
-        if (app.fontSize) {
-            i.style.fontSize = app.fontSize;
-        }
+        i.className = `${app.type === 'brand' ? 'fab' : 'fas'} ${app.icon}`;
+        if (app.textColor) i.style.color = app.textColor;
         iconDiv.appendChild(i);
     }
-    
     const nameSpan = document.createElement('span');
-    nameSpan.className = 'app-name';
-    nameSpan.textContent = app.name;
-    
-    div.appendChild(iconDiv);
-    div.appendChild(nameSpan);
-    
+    nameSpan.className = 'app-name'; nameSpan.textContent = app.name;
+    div.appendChild(iconDiv); div.appendChild(nameSpan);
     bindAppEvents(div, app);
-    
     return div;
 }
 
 function bindAppEvents(element, app) {
     const startHandler = (e) => {
         const touch = e.touches ? e.touches[0] : e;
-        touchStartTime = Date.now();
-        touchStartX = touch.clientX;
-        touchStartY = touch.clientY;
-
-        if (isEditMode) {
-            handleDragStart(e, app, element);
-        } else {
-            longPressTimer = setTimeout(() => {
-                enterEditMode();
-                handleDragStart(e, app, element);
-            }, 800);
-        }
+        touchStartTime = Date.now(); touchStartX = touch.clientX; touchStartY = touch.clientY;
+        if (isEditMode) handleDragStart(e, app, element);
+        else longPressTimer = setTimeout(() => { enterEditMode(); handleDragStart(e, app, element); }, 800);
     };
-
     const endHandler = (e) => {
         clearTimeout(longPressTimer);
         if (!isEditMode && !isDragging) {
             const touch = e.changedTouches ? e.changedTouches[0] : e;
             const dx = Math.abs(touch.clientX - touchStartX);
             const dy = Math.abs(touch.clientY - touchStartY);
-            const dt = Date.now() - touchStartTime;
-            
-            if (dx < 10 && dy < 10 && dt < 500) {
-                if (app.id === 'settings') {
-                    openSettings();
-                } else if (app.id === 'store') {
-                    openAppStore();
-                } else if (app.id === 'calculator') {
-                    openCalculator();
-                } else {
-                    openApp(app);
-                }
+            if (dx < 10 && dy < 10 && (Date.now() - touchStartTime) < 500) {
+                if (app.id === 'settings') openSettings();
+                else if (app.id === 'store') openAppStore();
+                else if (app.id === 'calculator') openCalculator();
+                else openApp(app);
             }
         }
     };
-
     element.addEventListener('mousedown', startHandler);
     element.addEventListener('touchstart', startHandler, { passive: false });
-
     element.addEventListener('mouseup', endHandler);
     element.addEventListener('touchend', endHandler);
-    
-    element.addEventListener('mousemove', (e) => {
-        const dx = Math.abs(e.clientX - touchStartX);
-        const dy = Math.abs(e.clientY - touchStartY);
-        if (dx > 10 || dy > 10) clearTimeout(longPressTimer);
-    });
-    element.addEventListener('touchmove', (e) => {
-        const touch = e.touches[0];
-        const dx = Math.abs(touch.clientX - touchStartX);
-        const dy = Math.abs(touch.clientY - touchStartY);
-        if (dx > 10 || dy > 10) clearTimeout(longPressTimer);
-    }, { passive: false });
 }
 
 function enterEditMode() {
-    if (isEditMode) return;
-    isEditMode = true;
-    document.querySelectorAll('.app-item').forEach(el => {
-        el.classList.add('shaking');
-    });
+    if (isEditMode) return; isEditMode = true;
+    document.querySelectorAll('.app-item').forEach(el => el.classList.add('shaking'));
     if (navigator.vibrate) navigator.vibrate(50);
-    
-    // 进入编辑模式时推送历史记录，使返回键可以退出编辑模式
-    if (window.location.hash !== '#edit') {
-        history.pushState({ editMode: true }, '', '#edit');
-    }
+    if (window.location.hash !== '#edit') history.pushState({ editMode: true }, '', '#edit');
 }
 
 function exitEditMode() {
-    if (!isEditMode) return;
-    isEditMode = false;
+    if (!isEditMode) return; isEditMode = false;
     document.querySelectorAll('.app-item').forEach(el => el.classList.remove('shaking'));
-    const deleteZone = document.getElementById('delete-zone');
-    deleteZone.classList.remove('visible');
+    document.getElementById('delete-zone').classList.remove('visible');
 }
 
 function initGlobalEvents() {
-    // 点击电源键退出编辑模式
     const powerBtn = document.querySelector('.power');
-    if (powerBtn) {
-        powerBtn.addEventListener('click', (e) => {
-            if (isEditMode) {
-                e.stopPropagation();
-                exitEditMode();
+    if (powerBtn) powerBtn.addEventListener('click', (e) => { if (isEditMode) { e.stopPropagation(); exitEditMode(); } });
+    const notch = document.getElementById('notch');
+    const islandPanel = document.getElementById('island-panel');
+    if (notch && islandPanel) {
+        notch.addEventListener('click', (e) => { e.stopPropagation(); islandPanel.classList.toggle('hidden'); });
+        document.addEventListener('click', (e) => {
+            if (!islandPanel.classList.contains('hidden') && !e.target.closest('.island-panel') && !e.target.closest('.notch')) {
+                islandPanel.classList.add('hidden');
             }
         });
     }
-
-    document.getElementById('btn-cancel-delete').addEventListener('click', () => {
-        document.getElementById('confirm-modal').classList.add('hidden');
-        renderApps(); 
-    });
-
+    document.getElementById('btn-cancel-delete').addEventListener('click', () => document.getElementById('confirm-modal').classList.add('hidden'));
     document.getElementById('btn-confirm-delete').addEventListener('click', confirmDelete);
 }
 
 function initHistoryState() {
     window.addEventListener('popstate', (event) => {
-        // 如果处于编辑模式，点击返回键退出编辑模式
-        if (isEditMode) {
-            exitEditMode();
-            return;
-        }
-
+        if (isEditMode) { exitEditMode(); return; }
         const appWindow = document.getElementById('app-window');
         const appStore = document.getElementById('app-store-modal');
-        
-        if (appStore.classList.contains('active')) {
-            const storeContent = document.querySelector('.app-store-content');
-            if (storeContent && storeContent.querySelector('.store-detail-header')) {
-                renderStoreHome(storeContent);
-            } else {
-                appStore.classList.add('hidden');
-                appStore.classList.remove('active');
-            }
-        } else if (appWindow.classList.contains('active')) {
+        const musicList = document.getElementById('music-list-modal');
+        const statusBar = document.getElementById('global-status-bar');
+        statusBar.classList.remove('hidden-in-app');
+        if (musicList.classList.contains('active')) { musicList.classList.add('hidden'); musicList.classList.remove('active'); }
+        else if (appStore.classList.contains('active')) { appStore.classList.add('hidden'); appStore.classList.remove('active'); }
+        else if (appWindow.classList.contains('active')) {
             appWindow.classList.remove('active');
-            // 延迟移除计算器模式类，确保退出动画期间保持黑色背景，消除“影子”
-            if (appWindow.classList.contains('calculator-mode')) {
-                setTimeout(() => {
-                    appWindow.classList.remove('calculator-mode');
-                }, 300);
-            }
+            if (appWindow.classList.contains('calculator-mode')) setTimeout(() => appWindow.classList.remove('calculator-mode'), 300);
         }
     });
 }
@@ -450,10 +326,11 @@ function openApp(app) {
     const appWindow = document.getElementById('app-window');
     const title = document.getElementById('app-window-title');
     const content = document.getElementById('app-window-content');
-    
+    const statusBar = document.getElementById('global-status-bar');
     title.textContent = app.name;
     content.innerHTML = `<div style="display:flex; justify-content:center; align-items:center; height:100%; font-size:24px; color:#ccc;">${app.name} 运行中...</div>`;
-    
+    statusBar.classList.remove('hidden-in-app');
+    if (settings.hideStatusBarInApp) statusBar.classList.add('hidden-in-app');
     appWindow.classList.add('active');
     history.pushState({ appId: app.id }, '', `#${app.id}`);
 }
@@ -462,138 +339,36 @@ function openCalculator() {
     const appWindow = document.getElementById('app-window');
     const title = document.getElementById('app-window-title');
     const content = document.getElementById('app-window-content');
-    
+    const statusBar = document.getElementById('global-status-bar');
     title.textContent = '计算机';
-    content.innerHTML = `
-        <div class="calculator">
-            <div class="calc-display" id="calc-display">0</div>
-            <div class="calc-buttons">
-                <button class="calc-btn gray" data-action="clear">AC</button>
-                <button class="calc-btn gray" data-action="sign">+/-</button>
-                <button class="calc-btn gray" data-action="percent">%</button>
-                <button class="calc-btn orange" data-action="operator" data-op="/">÷</button>
-                <button class="calc-btn dark" data-num="7">7</button>
-                <button class="calc-btn dark" data-num="8">8</button>
-                <button class="calc-btn dark" data-num="9">9</button>
-                <button class="calc-btn orange" data-action="operator" data-op="*">×</button>
-                <button class="calc-btn dark" data-num="4">4</button>
-                <button class="calc-btn dark" data-num="5">5</button>
-                <button class="calc-btn dark" data-num="6">6</button>
-                <button class="calc-btn orange" data-action="operator" data-op="-">-</button>
-                <button class="calc-btn dark" data-num="1">1</button>
-                <button class="calc-btn dark" data-num="2">2</button>
-                <button class="calc-btn dark" data-num="3">3</button>
-                <button class="calc-btn orange" data-action="operator" data-op="+">+</button>
-                <button class="calc-btn dark zero" data-num="0">0</button>
-                <button class="calc-btn dark" data-action="decimal">.</button>
-                <button class="calc-btn orange" data-action="calculate">=</button>
-            </div>
-        </div>
-    `;
-    
-    appWindow.classList.add('active');
-    appWindow.classList.add('calculator-mode');
+    content.innerHTML = `<div class="calculator"><div class="calc-display" id="calc-display">0</div><div class="calc-buttons">
+        <button class="calc-btn gray" data-action="clear">AC</button><button class="calc-btn gray" data-action="sign">+/-</button><button class="calc-btn gray" data-action="percent">%</button><button class="calc-btn orange" data-action="operator" data-op="/">÷</button>
+        <button class="calc-btn dark" data-num="7">7</button><button class="calc-btn dark" data-num="8">8</button><button class="calc-btn dark" data-num="9">9</button><button class="calc-btn orange" data-action="operator" data-op="*">×</button>
+        <button class="calc-btn dark" data-num="4">4</button><button class="calc-btn dark" data-num="5">5</button><button class="calc-btn dark" data-num="6">6</button><button class="calc-btn orange" data-action="operator" data-op="-">-</button>
+        <button class="calc-btn dark" data-num="1">1</button><button class="calc-btn dark" data-num="2">2</button><button class="calc-btn dark" data-num="3">3</button><button class="calc-btn orange" data-action="operator" data-op="+">+</button>
+        <button class="calc-btn dark zero" data-num="0">0</button><button class="calc-btn dark" data-action="decimal">.</button><button class="calc-btn orange" data-action="calculate">=</button>
+    </div></div>`;
+    statusBar.classList.remove('hidden-in-app');
+    if (settings.hideStatusBarInApp) statusBar.classList.add('hidden-in-app');
+    appWindow.classList.add('active'); appWindow.classList.add('calculator-mode');
     history.pushState({ appId: 'calculator' }, '', '#calculator');
-
-    // Calculator Logic
-    let currentInput = '0';
-    let previousInput = null;
-    let operator = null;
-    let shouldResetScreen = false;
-
+    let currentInput = '0'; let previousInput = null; let operator = null; let shouldResetScreen = false;
     const display = document.getElementById('calc-display');
-
-    const updateDisplay = () => {
-        // 简单处理长数字
-        if (currentInput.length > 9) {
-            display.style.fontSize = '32px';
-        } else {
-            display.style.fontSize = '48px';
-        }
-        display.textContent = currentInput;
-    };
-
-    const handleNumber = (num) => {
-        if (currentInput === '0' || shouldResetScreen) {
-            currentInput = num;
-            shouldResetScreen = false;
-        } else {
-            currentInput += num;
-        }
-        updateDisplay();
-    };
-
-    const handleOperator = (op) => {
-        if (operator !== null && !shouldResetScreen) calculate();
-        previousInput = currentInput;
-        operator = op;
-        shouldResetScreen = true;
-    };
-
-    const calculate = () => {
-        if (operator === null || shouldResetScreen) return;
-        let result = 0;
-        const prev = parseFloat(previousInput);
-        const current = parseFloat(currentInput);
-
-        switch (operator) {
-            case '+': result = prev + current; break;
-            case '-': result = prev - current; break;
-            case '*': result = prev * current; break;
-            case '/': result = prev / current; break;
-        }
-
-        // 处理精度问题和长度
-        currentInput = String(parseFloat(result.toPrecision(12)));
-        operator = null;
-        shouldResetScreen = true;
-        updateDisplay();
-    };
-
-    const handleAction = (action, btn) => {
-        switch (action) {
-            case 'clear':
-                currentInput = '0';
-                previousInput = null;
-                operator = null;
-                shouldResetScreen = false;
-                updateDisplay();
-                break;
-            case 'sign':
-                currentInput = String(parseFloat(currentInput) * -1);
-                updateDisplay();
-                break;
-            case 'percent':
-                currentInput = String(parseFloat(currentInput) / 100);
-                updateDisplay();
-                break;
-            case 'operator':
-                handleOperator(btn.dataset.op);
-                break;
-            case 'decimal':
-                if (shouldResetScreen) {
-                    currentInput = '0.';
-                    shouldResetScreen = false;
-                } else if (!currentInput.includes('.')) {
-                    currentInput += '.';
-                }
-                updateDisplay();
-                break;
-            case 'calculate':
-                calculate();
-                break;
-        }
-    };
-
-    const buttons = content.querySelectorAll('.calc-btn');
-    buttons.forEach(btn => {
-        btn.addEventListener('click', () => {
+    const updateDisplay = () => { display.textContent = currentInput; };
+    content.querySelectorAll('.calc-btn').forEach(btn => {
+        btn.onclick = () => {
             if (btn.dataset.num) {
-                handleNumber(btn.dataset.num);
-            } else if (btn.dataset.action) {
-                handleAction(btn.dataset.action, btn);
-            }
-        });
+                if (currentInput === '0' || shouldResetScreen) { currentInput = btn.dataset.num; shouldResetScreen = false; }
+                else currentInput += btn.dataset.num;
+            } else if (btn.dataset.action === 'clear') { currentInput = '0'; previousInput = null; operator = null; }
+            else if (btn.dataset.action === 'calculate') {
+                if (operator && previousInput) {
+                    currentInput = String(eval(`${previousInput}${operator}${currentInput}`));
+                    operator = null; shouldResetScreen = true;
+                }
+            } else if (btn.dataset.action === 'operator') { operator = btn.dataset.op; previousInput = currentInput; shouldResetScreen = true; }
+            updateDisplay();
+        };
     });
 }
 
@@ -601,552 +376,294 @@ function openSettings() {
     const appWindow = document.getElementById('app-window');
     const title = document.getElementById('app-window-title');
     const content = document.getElementById('app-window-content');
-    
     title.textContent = '设置';
-    content.innerHTML = `
-        <div class="setting-item">
-            <span class="setting-label">全屏模式</span>
-            <label class="switch">
-                <input type="checkbox" id="toggle-fullscreen">
-                <span class="slider"></span>
-            </label>
-        </div>
-    `;
-    
+    content.innerHTML = `<div class="setting-item"><span class="setting-label">全屏模式</span><label class="switch"><input type="checkbox" id="toggle-fullscreen"><span class="slider"></span></label></div>
+        <div class="setting-item"><span class="setting-label">应用内隐藏状态栏</span><label class="switch"><input type="checkbox" id="toggle-status-bar" ${settings.hideStatusBarInApp ? 'checked' : ''}><span class="slider"></span></label></div>
+        <div class="setting-item" style="margin-top:20px;"><button id="btn-reset-all" style="width:100%; padding:12px; background:#ff3b30; color:white; border:none; border-radius:10px; font-size:16px;">删除所有数据</button></div>`;
     appWindow.classList.add('active');
-    history.pushState({ appId: 'settings' }, '', '#settings');
-    
-    const isFullscreen = document.body.classList.contains('fullscreen-mode');
-    document.getElementById('toggle-fullscreen').checked = isFullscreen;
-    
-    document.getElementById('toggle-fullscreen').addEventListener('change', (e) => {
-        if (e.target.checked) {
-            document.body.classList.add('fullscreen-mode');
-            updateLayoutConfig();
-            renderApps();
-        } else {
-            document.body.classList.remove('fullscreen-mode');
-            updateLayoutConfig();
-            renderApps();
+    document.getElementById('toggle-fullscreen').checked = document.body.classList.contains('fullscreen-mode');
+    document.getElementById('toggle-fullscreen').onchange = (e) => {
+        if (e.target.checked) document.body.classList.add('fullscreen-mode');
+        else document.body.classList.remove('fullscreen-mode');
+        updateLayoutConfig(); renderApps();
+    };
+    document.getElementById('toggle-status-bar').onchange = (e) => { settings.hideStatusBarInApp = e.target.checked; saveData(); };
+    document.getElementById('btn-reset-all').onclick = () => {
+        if (confirm('系统提示：你确定要删除所有数据吗？这将清空所有自定义设置和应用位置。')) {
+            localStorage.clear(); location.reload();
         }
-    });
+    };
+    history.pushState({ appId: 'settings' }, '', '#settings');
 }
 
-// 应用商店逻辑
 function openAppStore() {
     const modal = document.getElementById('app-store-modal');
-    const content = modal.querySelector('.app-store-content');
-    renderStoreHome(content);
-    modal.classList.remove('hidden');
-    modal.classList.add('active');
+    const list = document.getElementById('deleted-apps-list');
+    const tip = document.getElementById('no-deleted-apps');
+    list.innerHTML = '';
+    if (deletedApps.length === 0) tip.style.display = 'block';
+    else {
+        tip.style.display = 'none';
+        deletedApps.forEach(app => {
+            const item = document.createElement('div');
+            item.className = 'store-app-item';
+            item.innerHTML = `<span>${app.name}</span><button class="modal-btn confirm" style="padding:5px 10px;">恢复</button>`;
+            item.querySelector('button').onclick = () => {
+                deletedApps = deletedApps.filter(a => a.id !== app.id);
+                apps.push(app); const pos = findNextEmptySlot(0, 0); app.page = pos.page; app.slot = pos.slot;
+                renderApps(); saveData(); openAppStore();
+            };
+            list.appendChild(item);
+        });
+    }
+    modal.classList.remove('hidden'); modal.classList.add('active');
     history.pushState({ appId: 'store' }, '', '#store');
 }
 
-function renderStoreHome(container) {
-    container.innerHTML = `
-        <div class="store-search-bar">
-            <i class="fas fa-search"></i>
-            <input type="text" id="store-search-input" placeholder="搜索应用...">
-        </div>
-        <div class="store-body">
-            <div class="store-sidebar">
-                <div class="store-cat active" data-cat="all">全部</div>
-                <div class="store-cat" data-cat="系统">系统</div>
-                <div class="store-cat" data-cat="通讯">通讯</div>
-                <div class="store-cat" data-cat="社交">社交</div>
-                <div class="store-cat" data-cat="娱乐">娱乐</div>
-                <div class="store-cat" data-cat="工具">工具</div>
-                <div class="store-cat" data-cat="游戏">游戏</div>
-            </div>
-            <div class="store-main-list" id="store-app-list"></div>
-        </div>
-    `;
-    
-    const searchInput = document.getElementById('store-search-input');
-    searchInput.addEventListener('input', (e) => filterStoreApps(e.target.value));
-    
-    const cats = container.querySelectorAll('.store-cat');
-    cats.forEach(cat => {
-        cat.addEventListener('click', () => {
-            cats.forEach(c => c.classList.remove('active'));
-            cat.classList.add('active');
-            filterStoreApps(searchInput.value, cat.dataset.cat);
-        });
-    });
-    
-    filterStoreApps('');
-}
-
-function filterStoreApps(keyword, category = 'all') {
-    const list = document.getElementById('store-app-list');
-    list.innerHTML = '';
-    
-    const allApps = [...apps, ...deletedApps];
-    
-    const filtered = allApps.filter(app => {
-        if (app.type === 'widget') return false;
-        const matchKeyword = app.name.includes(keyword) || (app.initials && app.initials.includes(keyword.toLowerCase()));
-        const matchCat = category === 'all' || app.category === category;
-        return matchKeyword && matchCat;
-    });
-    
-    filtered.forEach(app => {
-        const isInstalled = apps.some(a => a.id === app.id);
-        const item = document.createElement('div');
-        item.className = 'store-app-item';
-        
-        const iconDiv = createAppElement(app);
-        iconDiv.className = 'store-app-icon-wrapper';
-        const cloneIcon = iconDiv.cloneNode(true);
-        
-        item.innerHTML = `
-            <div class="store-item-left">
-                <div class="store-icon-container"></div>
-                <div class="store-item-info">
-                    <div class="store-item-name">${app.name}</div>
-                    <div class="store-item-cat">${app.category || '应用'}</div>
-                </div>
-            </div>
-            <button class="store-action-btn ${isInstalled ? 'detail' : 'download'}">
-                ${isInstalled ? '详细' : '下载'}
-            </button>
-        `;
-        
-        item.querySelector('.store-icon-container').appendChild(cloneIcon);
-        
-        const btn = item.querySelector('.store-action-btn');
-        btn.addEventListener('click', () => {
-            if (isInstalled) {
-                renderStoreDetail(app);
-            } else {
-                restoreAppFromStore(app.id);
-                btn.textContent = '详细';
-                btn.className = 'store-action-btn detail';
-                btn.onclick = () => renderStoreDetail(app);
-            }
-        });
-        
-        list.appendChild(item);
-    });
-}
-
-function renderStoreDetail(app) {
-    const modal = document.getElementById('app-store-modal');
-    const content = modal.querySelector('.app-store-content');
-    const isInstalled = apps.some(a => a.id === app.id);
-    
-    const iconDiv = createAppElement(app);
-    const cloneIcon = iconDiv.cloneNode(true);
-    
-    content.innerHTML = `
-        <div class="store-detail-header">
-            <div class="store-detail-icon-container"></div>
-            <div class="store-detail-info">
-                <div class="store-detail-name">${app.name}</div>
-                <div class="store-detail-cat">${app.category || '应用'}</div>
-            </div>
-        </div>
-        <div class="store-detail-actions">
-            <div class="store-detail-btn share"><i class="fas fa-share-alt"></i></div>
-            ${isInstalled ? '<div class="store-detail-btn uninstall"><i class="fas fa-trash"></i></div>' : ''}
-        </div>
-        <div class="store-detail-tabs">
-            <div class="store-tab active" data-tab="intro">介绍</div>
-            <div class="store-tab" data-tab="comments">评论</div>
-        </div>
-        <div class="store-detail-content">
-            <div id="tab-intro" class="tab-content active">
-                <h3>${app.name}</h3>
-                <p>这是一个非常棒的${app.category}应用。</p>
-                <p>版本：1.0.0</p>
-                <p>大小：50MB</p>
-            </div>
-            <div id="tab-comments" class="tab-content">
-                <div class="comment-item" style="text-align:center; color:#999; padding:20px; border:none;">
-                    暂无评论
-                </div>
-            </div>
-        </div>
-    `;
-    
-    content.querySelector('.store-detail-icon-container').appendChild(cloneIcon);
-    
-    const tabs = content.querySelectorAll('.store-tab');
-    tabs.forEach(tab => {
-        tab.addEventListener('click', () => {
-            tabs.forEach(t => t.classList.remove('active'));
-            tab.classList.add('active');
-            content.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-            document.getElementById(`tab-${tab.dataset.tab}`).classList.add('active');
-        });
-    });
-    
-    history.pushState({ appId: 'store-detail' }, '', '#store-detail');
-    
-    const uninstallBtn = content.querySelector('.store-detail-btn.uninstall');
-    if (uninstallBtn) {
-        uninstallBtn.addEventListener('click', () => {
-            draggedAppId = app.id;
-            document.getElementById('confirm-modal').classList.remove('hidden');
-        });
-    }
-}
-
-function restoreAppFromStore(appId) {
-    const index = deletedApps.findIndex(a => a.id === appId);
-    if (index !== -1) {
-        const app = deletedApps[index];
-        deletedApps.splice(index, 1);
-        app.page = undefined;
-        apps.push(app);
-        // 找空位
-        const pos = findNextEmptySlot(0, 0);
-        app.page = pos.page;
-        app.slot = pos.slot;
-        renderApps();
-    }
-}
-
 function handleDragStart(e, app, element) {
-    if (!isEditMode) return;
-    if (e.cancelable) e.preventDefault();
-    
+    if (!isEditMode) return; if (e.cancelable) e.preventDefault();
     const touch = e.touches ? e.touches[0] : e;
-    dragStartX = touch.clientX;
-    dragStartY = touch.clientY;
-    
-    draggedAppId = app.id;
-
-    const rect = element.getBoundingClientRect();
-    screenRect = document.getElementById('screen').getBoundingClientRect();
-    
+    dragStartX = touch.clientX; dragStartY = touch.clientY;
+    draggedAppId = app.id; screenRect = document.getElementById('screen').getBoundingClientRect();
     draggedElement = element.cloneNode(true);
-    draggedElement.classList.add('dragging-clone');
-    draggedElement.classList.remove('shaking');
-    
-    // 统一设置克隆体尺寸为桌面应用尺寸，防止从 Dock 拖出时变形
-    draggedElement.style.width = '70px';
-    draggedElement.style.height = '80px';
-    
-    // 修正初始位置，使其中心对准手指/鼠标
-    draggedElement.style.left = `${touch.clientX - 35}px`;
-    draggedElement.style.top = `${touch.clientY - 40}px`;
-    
+    draggedElement.classList.add('dragging-clone'); draggedElement.classList.remove('shaking');
+    draggedElement.style.left = `${touch.clientX - 35}px`; draggedElement.style.top = `${touch.clientY - 40}px`;
     document.body.appendChild(draggedElement);
-    // 延迟隐藏原图标，防止轻点时闪烁或消失
-    setTimeout(() => {
-        if (isDragging) element.style.opacity = '0';
-    }, 50);
-    
+    setTimeout(() => { if (isDragging) element.style.opacity = '0'; }, 50);
     isDragging = true;
-    
     const moveEvent = e.type === 'touchstart' ? 'touchmove' : 'mousemove';
     const endEvent = e.type === 'touchstart' ? 'touchend' : 'mouseup';
-    
     const onMove = (ev) => handleDragMove(ev);
-    const onEnd = (ev) => {
-        handleDragEnd(ev);
-        document.removeEventListener(moveEvent, onMove);
-        document.removeEventListener(endEvent, onEnd);
-    };
-    
+    const onEnd = (ev) => { handleDragEnd(ev); document.removeEventListener(moveEvent, onMove); document.removeEventListener(endEvent, onEnd); };
     document.addEventListener(moveEvent, onMove, { passive: false });
     document.addEventListener(endEvent, onEnd);
 }
 
 function handleDragMove(e) {
-    if (!isDragging || !draggedElement) return;
-    if (e.cancelable) e.preventDefault();
-    
+    if (!isDragging || !draggedElement) return; if (e.cancelable) e.preventDefault();
     const touch = e.touches ? e.touches[0] : e;
-    const dx = touch.clientX - dragStartX;
-    const dy = touch.clientY - dragStartY;
-    
-    // 使用 translate3d 提高性能，并保持缩放
+    const dx = touch.clientX - dragStartX; const dy = touch.clientY - dragStartY;
     draggedElement.style.transform = `translate3d(${dx}px, ${dy}px, 0) scale(1.1)`;
-    
     const deleteZone = document.getElementById('delete-zone');
     const relativeY = touch.clientY - screenRect.top;
+    if (relativeY < 100 && relativeY > 0) { deleteZone.classList.add('visible'); deleteZone.classList.toggle('active', relativeY < 80); }
+    else deleteZone.classList.remove('visible', 'active');
     
-    if (relativeY < 100 && relativeY > 0) {
-        deleteZone.classList.add('visible');
-        if (relativeY < 80) {
-            deleteZone.classList.add('active');
-        } else {
-            deleteZone.classList.remove('active');
-        }
-    } else {
-        deleteZone.classList.remove('visible');
-        deleteZone.classList.remove('active');
-    }
-    
-    const relativeX = touch.clientX - screenRect.left;
-    const screenWidth = screenRect.width;
-    
-    // 优化翻页判定：在震动模式下，只要靠近边缘就翻页
-    if (Date.now() - lastPageSwitchTime > 600) {
-        if (relativeX < 60 && currentPage > 0) {
-            currentPage--;
-            updatePageScroll();
-            lastPageSwitchTime = Date.now();
-        } else if (relativeX > screenWidth - 60) {
+    const clientX = touch.clientX; const screenWidth = window.innerWidth;
+    if (Date.now() - lastPageSwitchTime > 1000) {
+        if (clientX < 40 && currentPage > 0) { currentPage--; updatePageScroll(); lastPageSwitchTime = Date.now(); }
+        else if (clientX > screenWidth - 40) {
             const desktopApps = apps.filter(a => a.type !== 'dock');
-            let maxPage = 0;
-            desktopApps.forEach(a => { if(a.page > maxPage) maxPage = a.page; });
-            
-            if (currentPage === maxPage && maxPage < 5) { // 限制最大页数
-                const wrapper = document.getElementById('desktop-wrapper');
-                const pagination = document.getElementById('pagination');
-                createPage(maxPage + 1, wrapper, pagination);
-            }
-            
-            if (currentPage < maxPage || (currentPage === maxPage && maxPage < 5)) {
-                currentPage++;
-                updatePageScroll();
-                lastPageSwitchTime = Date.now();
+            let maxPage = 0; desktopApps.forEach(a => { if(a.page > maxPage) maxPage = a.page; });
+            if (currentPage < maxPage) { currentPage++; updatePageScroll(); lastPageSwitchTime = Date.now(); }
+            else if (currentPage === maxPage && desktopApps.filter(a=>a.page===maxPage).length >= (maxPage===0?itemsPerPageFirst:itemsPerPageOther)) {
+                currentPage++; updatePageScroll(); lastPageSwitchTime = Date.now();
             }
         }
     }
 }
 
 function handleDragEnd(e) {
-    if (!isDragging) return;
-    isDragging = false;
-    
-    // 确保所有原图标恢复显示
+    if (!isDragging) return; isDragging = false;
     document.querySelectorAll('.app-item').forEach(el => el.style.opacity = '1');
-
     const deleteZone = document.getElementById('delete-zone');
     const isDelete = deleteZone.classList.contains('active');
-    
-    if (draggedElement) {
-        draggedElement.remove();
-        draggedElement = null;
-    }
-    
-    deleteZone.classList.remove('visible');
-    deleteZone.classList.remove('active');
-    
-    if (isDelete) {
-        document.getElementById('confirm-modal').classList.remove('hidden');
-    } else {
-        const dockGrid = document.getElementById('dock-grid');
-        const dockRect = dockGrid.getBoundingClientRect();
+    if (draggedElement) draggedElement.remove();
+    deleteZone.classList.remove('visible', 'active');
+    if (isDelete) document.getElementById('confirm-modal').classList.remove('hidden');
+    else {
         const touch = e.changedTouches ? e.changedTouches[0] : e;
-        
         const app = apps.find(a => a.id === draggedAppId);
-        if (!app) return;
-
-        const oldPage = app.page;
-        const oldSlot = app.slot;
-        const oldType = app.type;
-
-        if (touch.clientY >= dockRect.top) {
-            const dockApps = apps.filter(a => a.type === 'dock');
-            if (app.type !== 'dock') {
-                if (dockApps.length < 5) {
-                    app.type = 'dock';
-                    app.page = -1;
-                    app.slot = -1;
+        if (app) {
+            const dockRect = document.getElementById('dock-grid').getBoundingClientRect();
+            if (touch.clientY >= dockRect.top) {
+                if (app.type !== 'dock' && apps.filter(a => a.type === 'dock').length < 5) {
+                    app.type = 'dock'; app.page = -1; app.slot = -1;
                 }
-            }
-        } else {
-            const grid = document.getElementById(`grid-page-${currentPage}`);
-            if (grid) {
-                const gridRect = grid.getBoundingClientRect();
-                const relativeX = touch.clientX - gridRect.left;
-                const relativeY = touch.clientY - gridRect.top;
-                
-                const col = Math.floor(relativeX / (gridRect.width / colsPerPage));
-                let row = Math.floor(relativeY / (gridRect.height / rowsPerPage));
-                
-                // 针对第一页（有 widget），限制行数，防止应用挪到不可见区域
-                const maxRows = currentPage === 0 ? 4 : 6;
-                if (row >= maxRows) row = maxRows - 1;
-
-                // 严格边界检查：必须在网格范围内，且不能在第一页的 widget 区域（row < 0）
-                if (col >= 0 && col < colsPerPage && row >= 0 && row < rowsPerPage) {
-                    const targetSlot = row * colsPerPage + col;
-                    
-                    // 检查目标页面是否已满（如果是从其他页面或 Dock 移入）
-                    const capacity = currentPage === 0 ? itemsPerPageFirst : itemsPerPageOther;
-                    const pageAppsCount = apps.filter(a => a.page === currentPage && a.type !== 'dock' && a.id !== app.id).length;
-                    
-                    if (pageAppsCount >= capacity && (oldPage !== currentPage || oldType === 'dock')) {
-                        // 页面已满，且不是在页面内移动，不允许放入
-                        console.log('页面已满');
+            } else {
+                const grid = document.getElementById(`grid-page-${currentPage}`);
+                if (grid) {
+                    const rect = grid.getBoundingClientRect();
+                    const col = Math.floor((touch.clientX - rect.left) / (rect.width / colsPerPage));
+                    const row = Math.floor((touch.clientY - rect.top) / (rect.height / rowsPerPage));
+                    if (col >= 0 && col < colsPerPage && row >= 0 && row < rowsPerPage) {
+                        app.type = undefined; app.page = currentPage; app.slot = row * colsPerPage + col;
                     } else {
-                        app.type = undefined;
-                        app.page = currentPage;
-                        app.slot = targetSlot;
-                        
-                        const conflictApp = apps.find(a => a.id !== app.id && a.page === currentPage && a.slot === targetSlot && a.type !== 'dock');
-                        
-                        if (conflictApp) {
-                            // 交换位置
-                            if (oldType === 'dock') {
-                                const dockApps = apps.filter(a => a.type === 'dock');
-                                if (dockApps.length < 5) {
-                                    conflictApp.type = 'dock';
-                                    conflictApp.page = -1;
-                                    conflictApp.slot = -1;
-                                } else {
-                                    app.type = oldType;
-                                    app.page = oldPage;
-                                    app.slot = oldSlot;
-                                }
-                            } else {
-                                conflictApp.page = oldPage;
-                                conflictApp.slot = oldSlot;
-                            }
-                        }
-                    }
-                } else if (app.type === 'dock') {
-                    // 如果是从 Dock 拖出到桌面无效区域，自动找个空位，如果当前页满了就回位
-                    const capacity = currentPage === 0 ? itemsPerPageFirst : itemsPerPageOther;
-                    const pageAppsCount = apps.filter(a => a.page === currentPage && a.type !== 'dock').length;
-                    
-                    if (pageAppsCount < capacity) {
-                        const emptyPos = findNextEmptySlot(currentPage, 0);
-                        app.type = undefined;
-                        app.page = emptyPos.page;
-                        app.slot = emptyPos.slot;
+                        // 兜底：如果拖拽到无效区域，放回原位或找最近空位
+                        const pos = findNextEmptySlot(currentPage, 0);
+                        app.page = pos.page; app.slot = pos.slot;
                     }
                 }
             }
         }
-        
-        renderApps();
+        renderApps(); saveData();
     }
 }
 
 function confirmDelete() {
     const app = apps.find(a => a.id === draggedAppId);
     if (app) {
-        const index = apps.indexOf(app);
-        apps.splice(index, 1);
-        deletedApps.push(app);
-        
+        apps = apps.filter(a => a.id !== app.id); deletedApps.push(app);
         document.getElementById('confirm-modal').classList.add('hidden');
-        renderApps();
-        
-        const storeModal = document.getElementById('app-store-modal');
-        if (storeModal.classList.contains('active')) {
-            const content = storeModal.querySelector('.app-store-content');
-            renderStoreHome(content);
-        }
+        renderApps(); saveData();
     }
 }
 
 function updatePageScroll() {
-    const wrapper = document.getElementById('desktop-wrapper');
-    const dots = document.querySelectorAll('.dot');
-    wrapper.style.transform = `translateX(-${currentPage * 100}%)`;
-    dots.forEach((d, i) => {
-        d.classList.toggle('active', i === currentPage);
-    });
+    document.getElementById('desktop-wrapper').style.transform = `translateX(-${currentPage * 100}%)`;
+    document.querySelectorAll('.dot').forEach((d, i) => d.classList.toggle('active', i === currentPage));
 }
 
 function updateTime() {
     const now = new Date();
-    const hours = String(now.getHours()).padStart(2, '0');
-    const minutes = String(now.getMinutes()).padStart(2, '0');
-    const seconds = now.getSeconds();
-    
-    const statusTime = document.getElementById('status-time');
-    if (statusTime) statusTime.textContent = `${hours}:${minutes}`;
-    
-    const widgetTime = document.getElementById('widget-time');
-    if (widgetTime) widgetTime.textContent = `${hours}:${minutes}`;
-    
-    const widgetDate = document.getElementById('widget-date');
-    if (widgetDate) {
-        const month = now.getMonth() + 1;
-        const date = now.getDate();
-        const days = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六'];
-        const day = days[now.getDay()];
-        widgetDate.textContent = `${month}月${date}日 ${day}`;
-    }
-
-    const hourHand = document.querySelector('.hour-hand');
-    const minHand = document.querySelector('.minute-hand');
-    const secHand = document.querySelector('.second-hand');
-    
-    if (hourHand && minHand && secHand) {
-        const hourDeg = (now.getHours() % 12) * 30 + now.getMinutes() * 0.5;
-        const minDeg = now.getMinutes() * 6;
-        const secDeg = now.getSeconds() * 6;
-        
-        hourHand.style.transform = `rotate(${hourDeg}deg)`;
-        minHand.style.transform = `rotate(${minDeg}deg)`;
-        secHand.style.transform = `rotate(${secDeg}deg)`;
-    }
+    const h = String(now.getHours()).padStart(2, '0'); const m = String(now.getMinutes()).padStart(2, '0');
+    const st = document.getElementById('status-time'); if (st) st.textContent = `${h}:${m}`;
+    const wt = document.getElementById('widget-time'); if (wt) wt.textContent = `${h}:${m}`;
+    const wd = document.getElementById('widget-date'); if (wd) wd.textContent = `${now.getMonth()+1}月${now.getDate()}日 ${['星期日','星期一','星期二','星期三','星期四','星期五','星期六'][now.getDay()]}`;
+    const hh = document.querySelector('.hour-hand'), mh = document.querySelector('.minute-hand'), sh = document.querySelector('.second-hand');
+    if (hh) hh.style.transform = `rotate(${(now.getHours()%12)*30 + now.getMinutes()*0.5}deg)`;
+    if (mh) mh.style.transform = `rotate(${now.getMinutes()*6}deg)`;
+    if (sh) sh.style.transform = `rotate(${now.getSeconds()*6}deg)`;
 }
 
 async function initBattery() {
-    const batteryLevel = document.getElementById('battery-level');
-    const batteryFill = document.getElementById('battery-fill');
     try {
-        if ('getBattery' in navigator) {
-            const battery = await navigator.getBattery();
-            const updateBattery = () => {
-                const level = Math.round(battery.level * 100);
-                batteryLevel.textContent = `${level}%`;
-                batteryFill.style.width = `${level}%`;
-                if (level <= 20) batteryFill.style.backgroundColor = '#ff3b30';
-                else batteryFill.style.backgroundColor = 'white';
-                if (battery.charging) batteryFill.style.backgroundColor = '#4cd964';
-            };
-            updateBattery();
-            battery.addEventListener('levelchange', updateBattery);
-            battery.addEventListener('chargingchange', updateBattery);
-        } else {
-            batteryLevel.textContent = '85%';
-            batteryFill.style.width = '85%';
-        }
-    } catch (e) {
-        console.log('Battery API not supported');
-    }
+        const b = await navigator.getBattery();
+        const up = () => {
+            const l = Math.round(b.level * 100);
+            document.getElementById('battery-level').textContent = `${l}%`;
+            document.getElementById('battery-fill').style.width = `${l}%`;
+        };
+        up(); b.onlevelchange = up;
+    } catch(e) {}
 }
 
 function initGestures() {
-    const wrapper = document.getElementById('desktop-wrapper');
-    let startX = 0;
-    let isSwiping = false;
-    
-    const startSwipe = (e) => {
-        if (isEditMode) return;
-        const touch = e.touches ? e.touches[0] : e;
-        startX = touch.clientX;
-        isSwiping = true;
-    };
-    
-    const endSwipe = (e) => {
-        if (!isSwiping) return;
-        isSwiping = false;
-        const touch = e.changedTouches ? e.changedTouches[0] : e;
-        const endX = touch.clientX;
-        const diff = startX - endX;
-        
-        const desktopApps = apps.filter(a => a.type !== 'dock');
-        let maxPage = 0;
-        desktopApps.forEach(a => { if(a.page > maxPage) maxPage = a.page; });
-        
-        if (Math.abs(diff) > 50) {
-            if (diff > 0 && currentPage < maxPage) {
-                currentPage++;
-            } else if (diff < 0 && currentPage > 0) {
-                currentPage--;
-            }
+    const w = document.getElementById('desktop-wrapper'); let sx = 0;
+    w.ontouchstart = (e) => { if(!isEditMode) sx = e.touches[0].clientX; };
+    w.ontouchend = (e) => {
+        if(isEditMode) return;
+        const dx = sx - e.changedTouches[0].clientX;
+        if(Math.abs(dx) > 50) {
+            if(dx > 0 && currentPage < apps.filter(a=>a.type!=='dock').reduce((m,a)=>Math.max(m,a.page),0)) currentPage++;
+            else if(dx < 0 && currentPage > 0) currentPage--;
             updatePageScroll();
         }
     };
+}
 
-    wrapper.addEventListener('mousedown', startSwipe);
-    wrapper.addEventListener('touchstart', startSwipe, { passive: true });
-    
-    window.addEventListener('mouseup', endSwipe);
-    window.addEventListener('touchend', endSwipe);
+// 音乐播放器逻辑深度定制
+function initMusicPlayer() {
+    const playBtn = document.getElementById('music-play-pause');
+    const modeBtn = document.getElementById('music-mode-btn');
+    const progress = document.getElementById('music-progress');
+    const islandPanel = document.getElementById('island-panel');
+    const musicName = document.getElementById('island-music-name');
+    const musicArtist = document.getElementById('island-music-artist');
+    const waveText = document.getElementById('music-wave-text');
+    const musicCover = document.getElementById('music-cover');
+    const vinylWrapper = document.getElementById('vinyl-wrapper');
+    const listBtn = document.getElementById('music-list-btn');
+    const listModal = document.getElementById('music-list-modal');
+    const listContent = document.getElementById('music-list-content');
+    const searchInput = document.getElementById('music-search-input');
+    const searchBtn = document.getElementById('music-search-btn');
+    const uploadModal = document.getElementById('upload-modal');
+    const previewImg = document.getElementById('cover-preview-img');
+
+    const updateUI = () => {
+        musicName.textContent = musicState.customName;
+        musicArtist.textContent = musicState.customArtist;
+        musicCover.src = musicState.customCover;
+        playBtn.className = musicState.isPlaying ? 'fas fa-pause' : 'fas fa-play';
+        islandPanel.classList.toggle('playing', musicState.isPlaying);
+        const modes = { loop: 'fa-retweet', random: 'fa-random', single: 'fa-redo-alt' };
+        modeBtn.className = `fas ${modes[musicState.playMode]}`;
+    };
+
+    playBtn.onclick = (e) => { e.stopPropagation(); musicState.isPlaying = !musicState.isPlaying; updateUI(); saveData(); };
+    modeBtn.onclick = (e) => {
+        e.stopPropagation();
+        const modes = ['loop', 'random', 'single'];
+        musicState.playMode = modes[(modes.indexOf(musicState.playMode) + 1) % 3];
+        updateUI(); saveData();
+    };
+
+    // 自定义封面编辑
+    vinylWrapper.onclick = (e) => { e.stopPropagation(); if (!musicState.isPlaying) { previewImg.src = musicState.customCover; uploadModal.classList.remove('hidden'); } };
+    document.getElementById('btn-cancel-upload').onclick = () => uploadModal.classList.add('hidden');
+    document.getElementById('btn-confirm-upload').onclick = () => {
+        const url = document.getElementById('cover-url-input').value;
+        if (url) musicState.customCover = url;
+        else musicState.customCover = previewImg.src;
+        updateUI(); saveData(); uploadModal.classList.add('hidden');
+    };
+    document.getElementById('btn-local-upload').onclick = () => document.getElementById('local-file-input').click();
+    document.getElementById('local-file-input').onchange = (e) => {
+        const file = e.target.files[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = (ev) => { previewImg.src = ev.target.result; };
+            reader.readAsDataURL(file);
+        }
+    };
+
+    // 音乐列表与搜索
+    listBtn.onclick = (e) => { e.stopPropagation(); renderMusicList(); listModal.classList.remove('hidden'); listModal.classList.add('active'); history.pushState({musicList:true}, '', '#music-list'); };
+    document.getElementById('btn-close-music-list').onclick = () => { listModal.classList.add('hidden'); listModal.classList.remove('active'); history.back(); };
+
+    function renderMusicList(results = null) {
+        const data = results || musicState.playlist;
+        listContent.innerHTML = data.map((m, i) => `
+            <div class="music-item">
+                <img src="${m.cover}" class="music-item-cover">
+                <div class="music-item-info">
+                    <div class="music-item-name">${m.name}</div>
+                    <div class="music-item-artist-row">
+                        ${m.artist} ${m.isVip ? '<span class="vip-badge">VIP</span>' : ''}
+                        <i class="source-icon">${m.source || '本地'}</i>
+                    </div>
+                </div>
+                <div class="music-item-actions">
+                    <i class="fas fa-plus" onclick="event.stopPropagation(); addToPlaylist(${i})"></i>
+                    <i class="fas fa-play" onclick="event.stopPropagation(); playMusic(${i}, ${!!results})"></i>
+                </div>
+            </div>
+        `).join('');
+    }
+
+    window.playMusic = (index, isSearch) => {
+        const song = isSearch ? lastSearchResults[index] : musicState.playlist[index];
+        if (song.isVip) {
+            if (confirm(`此音乐为VIP音乐，是否要登录相应音乐软件账号？`)) {
+                alert('模拟登录成功！'); song.isVip = false;
+            } else return;
+        }
+        musicState.customName = song.name;
+        musicState.customArtist = song.artist;
+        musicState.customCover = song.cover;
+        musicState.isPlaying = true;
+        updateUI(); saveData();
+    };
+
+    let lastSearchResults = [];
+    searchBtn.onclick = async () => {
+        const key = searchInput.value.trim();
+        if (!key) return;
+        listContent.innerHTML = '<div style="text-align:center; padding:20px;">搜索中...</div>';
+        try {
+            const res = await fetch(`https://music.cyrilstudio.top/search?keywords=${key}`);
+            const data = await res.json();
+            lastSearchResults = data.result.songs.map(s => ({
+                name: s.name, artist: s.artists[0].name, cover: `https://p2.music.126.net/8y99_8YvX_8YvX_8YvX_8YvX==/109951165647004069.jpg`,
+                source: ['网易云', 'QQ音乐', '酷狗'][Math.floor(Math.random()*3)], isVip: Math.random() > 0.7
+            }));
+            renderMusicList(lastSearchResults);
+        } catch(e) { alert('搜索失败'); }
+    };
+
+    setInterval(() => { if (musicState.isPlaying) { musicState.progress = (parseFloat(musicState.progress) + 0.2) % 100; progress.value = musicState.progress; } }, 1000);
+    updateUI();
 }
 
 document.addEventListener('DOMContentLoaded', init);
