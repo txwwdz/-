@@ -262,13 +262,6 @@ function createAppElement(app) {
         `;
         iconDiv.style.backgroundColor = 'white';
     } else if (app.name === '时钟') {
-        let marksHtml = '';
-        for (let i = 0; i < 12; i++) {
-            const deg = i * 30;
-            const isMain = i % 3 === 0;
-            marksHtml += `<div class="clock-mark ${isMain ? 'long' : ''}" style="transform: rotate(${deg}deg) translate(0, -24px)"></div>`;
-        }
-        
         iconDiv.innerHTML = `
             <div class="clock-icon">
                 <div class="clock-face">
@@ -277,7 +270,6 @@ function createAppElement(app) {
                         <div class="clock-hand minute-hand" id="clock-min-${app.id}"></div>
                         <div class="clock-hand second-hand" id="clock-sec-${app.id}"></div>
                         <div class="clock-center"></div>
-                        ${marksHtml}
                     </div>
                 </div>
             </div>
@@ -402,6 +394,7 @@ function initGlobalEvents() {
     // 支持触摸和点击退出编辑模式
     const exitHandler = (e) => {
         if (isEditMode && !isDragging) {
+            // 只要点击的不是应用图标、弹窗或删除区域，就视为点击空白处，退出编辑模式
             if (!e.target.closest('.app-item') && 
                 !e.target.closest('.modal-content') && 
                 !e.target.closest('.delete-zone')) {
@@ -411,6 +404,17 @@ function initGlobalEvents() {
     };
     document.addEventListener('click', exitHandler);
     document.addEventListener('touchstart', exitHandler, { passive: true });
+
+    // 点击电源键退出编辑模式
+    const powerBtn = document.querySelector('.power');
+    if (powerBtn) {
+        powerBtn.addEventListener('click', (e) => {
+            if (isEditMode) {
+                e.stopPropagation();
+                exitEditMode();
+            }
+        });
+    }
 
     document.getElementById('btn-cancel-delete').addEventListener('click', () => {
         document.getElementById('confirm-modal').classList.add('hidden');
@@ -435,7 +439,12 @@ function initHistoryState() {
             }
         } else if (appWindow.classList.contains('active')) {
             appWindow.classList.remove('active');
-            appWindow.classList.remove('calculator-mode');
+            // 延迟移除计算器模式类，确保退出动画期间保持黑色背景，消除“影子”
+            if (appWindow.classList.contains('calculator-mode')) {
+                setTimeout(() => {
+                    appWindow.classList.remove('calculator-mode');
+                }, 300);
+            }
         }
     });
 }
@@ -803,7 +812,7 @@ function restoreAppFromStore(appId) {
 
 function handleDragStart(e, app, element) {
     if (!isEditMode) return;
-    e.preventDefault();
+    if (e.cancelable) e.preventDefault();
     
     const touch = e.touches ? e.touches[0] : e;
     dragStartX = touch.clientX;
@@ -817,10 +826,14 @@ function handleDragStart(e, app, element) {
     draggedElement = element.cloneNode(true);
     draggedElement.classList.add('dragging-clone');
     draggedElement.classList.remove('shaking');
-    draggedElement.style.left = `${rect.left}px`;
-    draggedElement.style.top = `${rect.top}px`;
-    draggedElement.style.width = `${rect.width}px`;
-    draggedElement.style.height = `${rect.height}px`;
+    
+    // 统一设置克隆体尺寸为桌面应用尺寸，防止从 Dock 拖出时变形
+    draggedElement.style.width = '70px';
+    draggedElement.style.height = '80px';
+    
+    // 修正初始位置，使其中心对准手指/鼠标
+    draggedElement.style.left = `${touch.clientX - 35}px`;
+    draggedElement.style.top = `${touch.clientY - 40}px`;
     
     document.body.appendChild(draggedElement);
     element.style.opacity = '0';
@@ -842,13 +855,14 @@ function handleDragStart(e, app, element) {
 
 function handleDragMove(e) {
     if (!isDragging || !draggedElement) return;
-    e.preventDefault();
+    if (e.cancelable) e.preventDefault();
     
     const touch = e.touches ? e.touches[0] : e;
     const dx = touch.clientX - dragStartX;
     const dy = touch.clientY - dragStartY;
     
-    draggedElement.style.transform = `translate(${dx}px, ${dy}px) scale(1.1)`;
+    // 使用 translate3d 提高性能，并保持缩放
+    draggedElement.style.transform = `translate3d(${dx}px, ${dy}px, 0) scale(1.1)`;
     
     const deleteZone = document.getElementById('delete-zone');
     const relativeY = touch.clientY - screenRect.top;
@@ -916,13 +930,11 @@ function handleDragEnd(e) {
         const app = apps.find(a => a.id === draggedAppId);
         if (!app) return;
 
-        // 限制 PC 端不能拖到毛玻璃之外的底部
-        if (touch.clientY > dockRect.bottom) {
-            renderApps();
-            return;
-        }
+        const oldPage = app.page;
+        const oldSlot = app.slot;
+        const oldType = app.type;
 
-        if (touch.clientY >= dockRect.top && touch.clientY <= dockRect.bottom) {
+        if (touch.clientY >= dockRect.top) {
             const dockApps = apps.filter(a => a.type === 'dock');
             if (app.type !== 'dock') {
                 if (dockApps.length < 5) {
@@ -941,36 +953,53 @@ function handleDragEnd(e) {
                 const col = Math.floor(relativeX / (gridRect.width / colsPerPage));
                 const row = Math.floor(relativeY / (gridRect.height / rowsPerPage));
                 
+                // 严格边界检查：必须在网格范围内，且不能在第一页的 widget 区域（row < 0）
                 if (col >= 0 && col < colsPerPage && row >= 0 && row < rowsPerPage) {
                     const targetSlot = row * colsPerPage + col;
                     
-                    const oldPage = app.page;
-                    const oldSlot = app.slot;
-                    const oldType = app.type;
+                    // 检查目标页面是否已满（如果是从其他页面或 Dock 移入）
+                    const capacity = currentPage === 0 ? itemsPerPageFirst : itemsPerPageOther;
+                    const pageAppsCount = apps.filter(a => a.page === currentPage && a.type !== 'dock' && a.id !== app.id).length;
                     
-                    app.type = undefined;
-                    app.page = currentPage;
-                    app.slot = targetSlot;
-                    
-                    const conflictApp = apps.find(a => a.id !== app.id && a.page === currentPage && a.slot === targetSlot && a.type !== 'dock');
-                    
-                    if (conflictApp) {
-                        // 交换位置
-                        if (oldType === 'dock') {
-                            const dockApps = apps.filter(a => a.type === 'dock');
-                            if (dockApps.length < 5) {
-                                conflictApp.type = 'dock';
-                                conflictApp.page = -1;
-                                conflictApp.slot = -1;
+                    if (pageAppsCount >= capacity && (oldPage !== currentPage || oldType === 'dock')) {
+                        // 页面已满，且不是在页面内移动，不允许放入
+                        console.log('页面已满');
+                    } else {
+                        app.type = undefined;
+                        app.page = currentPage;
+                        app.slot = targetSlot;
+                        
+                        const conflictApp = apps.find(a => a.id !== app.id && a.page === currentPage && a.slot === targetSlot && a.type !== 'dock');
+                        
+                        if (conflictApp) {
+                            // 交换位置
+                            if (oldType === 'dock') {
+                                const dockApps = apps.filter(a => a.type === 'dock');
+                                if (dockApps.length < 5) {
+                                    conflictApp.type = 'dock';
+                                    conflictApp.page = -1;
+                                    conflictApp.slot = -1;
+                                } else {
+                                    app.type = oldType;
+                                    app.page = oldPage;
+                                    app.slot = oldSlot;
+                                }
                             } else {
-                                app.type = oldType;
-                                app.page = oldPage;
-                                app.slot = oldSlot;
+                                conflictApp.page = oldPage;
+                                conflictApp.slot = oldSlot;
                             }
-                        } else {
-                            conflictApp.page = oldPage;
-                            conflictApp.slot = oldSlot;
                         }
+                    }
+                } else if (app.type === 'dock') {
+                    // 如果是从 Dock 拖出到桌面无效区域，自动找个空位，如果当前页满了就回位
+                    const capacity = currentPage === 0 ? itemsPerPageFirst : itemsPerPageOther;
+                    const pageAppsCount = apps.filter(a => a.page === currentPage && a.type !== 'dock').length;
+                    
+                    if (pageAppsCount < capacity) {
+                        const emptyPos = findNextEmptySlot(currentPage, 0);
+                        app.type = undefined;
+                        app.page = emptyPos.page;
+                        app.slot = emptyPos.slot;
                     }
                 }
             }

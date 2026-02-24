@@ -53,10 +53,19 @@ body.fullscreen-mode .screen {
     border-radius: 0;
 }
 
-body.fullscreen-mode .button,
-body.fullscreen-mode .notch,
-body.fullscreen-mode .home-indicator {
+body.fullscreen-mode .button {
     display: none;
+}
+
+/* 全屏模式下，手机端保留灵动岛，电脑平板隐藏 */
+body.fullscreen-mode .notch {
+    display: flex;
+}
+
+@media (min-width: 768px) {
+    body.fullscreen-mode .notch {
+        display: none;
+    }
 }
 
 /* 灵动岛：默认显示 */
@@ -288,13 +297,13 @@ body.fullscreen-mode .home-indicator {
     height: 90px; 
     background: rgba(255,255,255,0.2); 
     backdrop-filter: blur(15px); 
-    margin: 0 auto 12px auto; 
-    border-radius: 28px; 
+    margin: 0 2px 12px 2px; /* 左右各留 2mm 左右的间距 */
+    border-radius: 30px; 
     display: flex; 
     align-items: center; 
     justify-content: center; 
-    padding: 0 50px; /* 增加 padding */
-    width: calc(100% - 30px); /* 撑满宽度减去边距 */
+    padding: 0 10px; 
+    width: calc(100% - 4px); /* 宽度几乎撑满，两边各留 2px */
     max-width: none;
 }
 .dock-grid { 
@@ -316,8 +325,6 @@ body.fullscreen-mode .home-indicator {
 }
 .dock-grid .app-name { display: none; }
 
-/* 底部横条 */
-.home-indicator { position: absolute; bottom: 8px; left: 50%; transform: translateX(-50%); width: 120px; height: 5px; background: white; border-radius: 3px; opacity: 0.8; }
 ::-webkit-scrollbar { display: none; }
 
 /* 震动动画 */
@@ -604,12 +611,19 @@ input:checked + .slider:before { transform: translateX(22px); }
 }
 
 .dragging-clone {
-    position: fixed;
-    pointer-events: none;
-    z-index: 1000;
+    position: fixed !important;
+    pointer-events: none !important;
+    z-index: 9999 !important;
     transform: scale(1.1);
     opacity: 0.9;
     margin: 0 !important;
+    transition: none !important; /* 移除过渡，防止拖拽滞后 */
+    background: transparent !important;
+}
+
+.dragging-clone .app-name {
+    display: block !important; /* 拖拽时始终显示名称 */
+    opacity: 1 !important;
 }
 
 /* 日历图标样式 */
@@ -711,28 +725,19 @@ input:checked + .slider:before { transform: translateX(22px); }
     transform: translate(-50%, -50%);
 }
 
-/* 时钟刻度 */
-.clock-mark {
-    position: absolute;
-    width: 2px;
-    height: 4px;
-    background: white;
-    left: calc(50% - 1px);
-    top: 2px;
-    transform-origin: 1px 24px;
-}
-
-.clock-mark.long {
-    height: 6px;
-    background: #ff3b30;
-    width: 2px; /* 变细 */
-    left: calc(50% - 1px);
-    transform-origin: 1px 24px;
-}
+/* 时钟刻度已删除 */
 
 /* 计算器特殊窗口样式 */
 .app-window.calculator-mode {
-    background: #000;
+    background: #000 !important; /* 强制黑色背景，防止退出时闪白 */
+    transition: all 0.3s ease;
+}
+
+/* 退出时一闪而过（更快的过渡） */
+.app-window.calculator-mode:not(.active) {
+    transition: none !important; /* 彻底取消过渡，实现一闪而过 */
+    transform: none !important; /* 取消缩放，防止产生影子 */
+    opacity: 0 !important;
 }
 
 .app-window.calculator-mode .app-window-header {
@@ -752,7 +757,6 @@ input:checked + .slider:before { transform: translateX(22px); }
         height: 700px;
         border-radius: 30px;
         overflow: hidden;
-        box-shadow: 0 0 20px rgba(255,255,255,0.1);
     }
 }
 
